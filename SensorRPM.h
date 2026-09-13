@@ -2,6 +2,7 @@
 #define SENSOR_RPM_H
 
 #include <Arduino.h>
+#include "Destino.h"
 
 // ----------------------------------------------------------------
 //  RPM — Sensor Hall KY-003
@@ -34,5 +35,10 @@ bool verificarHall();
 // configuráveis no .ino — são passados por parâmetro para o módulo
 // não precisar conhecer variáveis globais de configuração.
 void calcularRPM(float setpointRPM, float toleranciaRPM);
+
+// Passo 12 — único lugar que sabe o nome de cada EstadoMotor. Serial
+// e SD chamam esta função em vez de terem cada um o próprio switch;
+// só MOTOR_PAROU muda de texto conforme o destino (ver Destino.h).
+const __FlashStringHelper* motorParaTexto(EstadoMotor motor, Destino destino);
 
 #endif

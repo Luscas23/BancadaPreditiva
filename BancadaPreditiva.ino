@@ -34,6 +34,7 @@
 #include "LogicaAvaliacao.h"
 #include "Display.h"
 #include "LoggerSD.h"
+#include "Destino.h"       // DESTINO_SERIAL, usado no log Serial
 
 // ----------------------------------------------------------------
 //  SETPOINTS E TOLERÂNCIAS (configuração de negócio)
@@ -62,18 +63,6 @@ LimitesAvaliacao limites = {
   setpointCorr, toleranciaCorr, CORR_GRAVE,
   setpointRPM, toleranciaRPM, RPM_GRAVE_MIN, RPM_GRAVE_MAX
 };
-
-// ----------------------------------------------------------------
-//  ESTADOS DO SISTEMA
-// ----------------------------------------------------------------
-typedef enum {
-  ESTADO_INIT,
-  ESTADO_VERIFICANDO,
-  ESTADO_AGUARDANDO,
-  ESTADO_LENDO
-} EstadoSistema;
-
-EstadoSistema estadoAtual = ESTADO_INIT;
 
 // ----------------------------------------------------------------
 //  VARIÁVEIS DE LEITURA
@@ -212,13 +201,8 @@ void setup() {
   pt100Init();
 
   // Fases de inicialização
-  estadoAtual = ESTADO_VERIFICANDO;
   verificarPerifericos();
-
-  estadoAtual = ESTADO_AGUARDANDO;
   countdown45s();
-
-  estadoAtual = ESTADO_LENDO;
   loggerSDIniciarTempo();  // referência t=0 do CSV: começo da Fase 3, não do boot
 
   // Ativa watchdog apenas após inicialização completa
@@ -273,17 +257,8 @@ void loop() {
   Serial.print(corrente, 3);    Serial.print(F("\t"));
   Serial.print((int)rpmAtual);  Serial.print(F("\t"));
   Serial.print(erros);          Serial.print(F("\t"));
-  switch (estadoMotor) {
-    case MOTOR_PARADO:     Serial.print(F("PARADO\t"));     break;
-    case MOTOR_ACELERANDO: Serial.print(F("ACELERANDO\t")); break;
-    case MOTOR_OPERANDO:   Serial.print(F("OPERANDO\t"));   break;
-    case MOTOR_PAROU:      Serial.print(F("PAROU!!!\t"));   break;
-  }
-  switch (estado) {
-    case ANDON_BOM:    Serial.println(F("BOM"));     break;
-    case ANDON_DEFEITO:Serial.println(F("DEFEITO"));  break;
-    case ANDON_GRAVE:  Serial.println(F("GRAVE"));   break;
-  }
+  Serial.print(motorParaTexto(estadoMotor, DESTINO_SERIAL)); Serial.print(F("\t"));
+  Serial.println(andonParaTexto(estado, DESTINO_SERIAL));
 
   // Grava a mesma leitura no cartão SD (se disponível)
   gravarLeituraSD(temperatura, corrente, estado, erros);

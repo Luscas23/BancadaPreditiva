@@ -18,3 +18,17 @@ void piscarAndon(EstadoAndon estado, int vezes, int ms) {
     setAndon(ANDON_BOM); delay(ms / 2);
   }
 }
+
+// Passo 12 — ver comentário em Andon.h. `destino` não muda o texto
+// hoje (Serial e SD usam as mesmas 3 palavras); parâmetro nomeado
+// mas não usado no switch, então marcado (void) pra não gerar aviso
+// de "parâmetro não usado" na compilação.
+const __FlashStringHelper* andonParaTexto(EstadoAndon estado, Destino destino) {
+  (void)destino;
+  switch (estado) {
+    case ANDON_BOM:     return F("BOM");
+    case ANDON_DEFEITO: return F("DEFEITO");
+    case ANDON_GRAVE:   return F("GRAVE");
+  }
+  return F("");  // enum bem formado nunca cai aqui
+}

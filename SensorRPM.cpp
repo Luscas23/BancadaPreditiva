@@ -51,3 +51,16 @@ void calcularRPM(float setpointRPM, float toleranciaRPM) {
     ultimoCalculoRPM = agora;
   }
 }
+
+// Passo 12 — ver comentário em SensorRPM.h. Só MOTOR_PAROU diverge:
+// Serial mostra "PAROU!!!" (alerta pra quem tá olhando ao vivo), SD
+// grava "PAROU" puro pra não sujar o CSV com "!!!".
+const __FlashStringHelper* motorParaTexto(EstadoMotor motor, Destino destino) {
+  switch (motor) {
+    case MOTOR_PARADO:     return F("PARADO");
+    case MOTOR_ACELERANDO: return F("ACELERANDO");
+    case MOTOR_OPERANDO:   return F("OPERANDO");
+    case MOTOR_PAROU:      return (destino == DESTINO_SERIAL) ? F("PAROU!!!") : F("PAROU");
+  }
+  return F("");  // enum bem formado nunca cai aqui
+}

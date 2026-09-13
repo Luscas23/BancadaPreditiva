@@ -2,6 +2,7 @@
 #include <SD.h>
 #include "LoggerSD.h"
 #include "SensorRPM.h"   // rpmAtual, estadoMotor, EstadoMotor
+#include "Destino.h"     // DESTINO_SD, usado no log do cartão
 
 static const char    NOME_ARQUIVO_LOG[] = "LOG.CSV";
 static unsigned long inicioLeituraMs    = 0;
@@ -49,18 +50,8 @@ void gravarLeituraSD(float temperatura, float corrente, EstadoAndon estado, int 
   arquivo.print(corrente, 3);                               arquivo.print(F(","));
   arquivo.print((int)rpmAtual);                             arquivo.print(F(","));
   arquivo.print(erros);                                     arquivo.print(F(","));
-  switch (estadoMotor) {
-    case MOTOR_PARADO:     arquivo.print(F("PARADO"));     break;
-    case MOTOR_ACELERANDO: arquivo.print(F("ACELERANDO")); break;
-    case MOTOR_OPERANDO:   arquivo.print(F("OPERANDO"));   break;
-    case MOTOR_PAROU:      arquivo.print(F("PAROU"));      break;
-  }
-  arquivo.print(F(","));
-  switch (estado) {
-    case ANDON_BOM:     arquivo.println(F("BOM"));     break;
-    case ANDON_DEFEITO: arquivo.println(F("DEFEITO")); break;
-    case ANDON_GRAVE:   arquivo.println(F("GRAVE"));   break;
-  }
+  arquivo.print(motorParaTexto(estadoMotor, DESTINO_SD)); arquivo.print(F(","));
+  arquivo.println(andonParaTexto(estado, DESTINO_SD));
 
   arquivo.close();  // fecha = grava (flush) no cartão imediatamente
 }

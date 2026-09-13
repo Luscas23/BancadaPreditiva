@@ -1,3 +1,41 @@
+## Nova mudança — Centraliza mapeamento enum→texto (Destino.h)
+- Confirmado por inspeção: eram 4 blocos `switch` (não 6 — o LCD já
+  tinha saído dessa conta no passo anterior), 2 por enum: Serial em
+  `BancadaPreditiva.ino` e SD em `LoggerSD.cpp`, um para `EstadoMotor`
+  e um para `EstadoAndon` cada.
+- Criado `Destino.h`: só o `enum Destino { DESTINO_SERIAL, DESTINO_SD }`,
+  sem `.cpp` próprio (não precisa).
+- `motorParaTexto(EstadoMotor, Destino)` — declarada em `SensorRPM.h`,
+  definida em `SensorRPM.cpp`, ao lado do enum que ela descreve. Único
+  ponto de divergência real entre destinos: `MOTOR_PAROU` vira
+  `"PAROU!!!"` no Serial (chama atenção de quem acompanha ao vivo) e
+  `"PAROU"` no SD (não suja o CSV).
+- `andonParaTexto(EstadoAndon, Destino)` — declarada em `Andon.h`,
+  definida em `Andon.cpp`. Hoje devolve a mesma palavra pros dois
+  destinos; parâmetro `destino` recebido mas não usado no switch
+  (`(void)destino`), só pra assinatura já ficar pronta se um dia
+  precisar divergir sem quebrar quem chama.
+- `BancadaPreditiva.ino` (log Serial) e `LoggerSD.cpp` (CSV) trocaram
+  os switches por chamadas às duas funções acima.
+- Resultado: uma opção nova em qualquer um dos dois enums agora só
+  precisa ser tratada em 1 lugar (a função correspondente), não mais
+  em 2 switches espalhados — e esquecer um `case` vira aviso do
+  compilador (`-Wswitch` do enum) em vez de bug silencioso.
+- Delimitadores (`\t` no Serial, `,` no CSV) continuam por conta de
+  quem chama — não fazem parte do "nome" do estado, então ficaram de
+  fora das funções.
+
+## Nova mudança — Remove código morto `estadoAtual`/`EstadoSistema`
+- Confirmado por inspeção: `estadoAtual` só recebia valor (declaração +
+  3 atribuições em `setup()` — `ESTADO_VERIFICANDO`/`ESTADO_AGUARDANDO`/
+  `ESTADO_LENDO`) e nunca era lido em nenhum `if`/`switch`/comparação
+  nem passado como parâmetro pra nenhuma função, no `.ino` ou em
+  qualquer módulo.
+- Removidos do `.ino`: o `typedef enum EstadoSistema` e a variável
+  `estadoAtual`, junto com as 3 atribuições em `setup()`.
+- Nenhuma mudança de comportamento — a variável não influenciava nada
+  em runtime.
+
 ## Nova mudança — Display 16x2 fixo na Fase 3, sem rodízio
 - Hardware trocado: LCD I2C 20x4 → 16x2. `lcd` agora é
   `LiquidCrystal_I2C lcd(0x27, 16, 2)`.
