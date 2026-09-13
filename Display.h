@@ -3,17 +3,20 @@
 
 #include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
-#include "Andon.h"
 
 // ----------------------------------------------------------------
-//  LCD 20x4 I2C — o objeto mora aqui (Passo 8)
+//  LCD 16x2 I2C — o objeto mora aqui (Passo 8; trocado de 20x4 para
+//  16x2 no Passo 11 — hardware do display mudou)
 // ----------------------------------------------------------------
 extern LiquidCrystal_I2C lcd;
 
 void displayInit();
 
-// Tela principal do loop (Fase 3) — Passo 7/8
-void atualizarDisplay(float temperatura, float corrente, EstadoAndon estado, int erros);
+// Tela principal do loop (Fase 3) — Passo 7/8, redesenhada no Passo 11
+// para caber em 16x2: tela FIXA, sem rodízio entre telas. Mostra só o
+// essencial (temperatura, corrente, RPM e vibração); Andon/erros
+// continuam sinalizados pela torre física, não pelo LCD.
+void atualizarDisplay(float temperatura, float corrente);
 
 // ----------------------------------------------------------------
 //  Passo 9 — telas de boot e das Fases 1 e 2, antes soltas no .ino

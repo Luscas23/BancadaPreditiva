@@ -1,3 +1,31 @@
+## Nova mudança — Display 16x2 fixo na Fase 3, sem rodízio
+- Hardware trocado: LCD I2C 20x4 → 16x2. `lcd` agora é
+  `LiquidCrystal_I2C lcd(0x27, 16, 2)`.
+- `atualizarDisplay()` perdeu os parâmetros `estado`/`erros` — não
+  cabem mais nas 16 colunas e não fazem parte do que foi definido como
+  essencial. Assinatura nova: `atualizarDisplay(temperatura, corrente)`;
+  chamada em `loop()` atualizada.
+- Tela agora é FIXA (sem rodízio entre telas): os 4 itens essenciais
+  ficam sempre visíveis ao mesmo tempo.
+  - Linha 0: `T:XX.XC I:X.XXA`
+  - Linha 1: `RPM:XXXX V:XXXs` (ou `V:DEF`/`V:GRV` quando há vibração
+    detectada naquele ciclo)
+- Estado do Andon (BOM/DEFEITO/GRAVE) e contagem de erros saem do
+  LCD — quem continua sinalizando isso é só a torre física
+  (`setAndon()`, já chamado separadamente no `.ino`).
+- As duas faixas de vibração (SW-420 1 = defeito, SW-420 2 = grave)
+  foram condensadas num único campo `V:` de 7 colunas: mostra a faixa
+  que disparou neste ciclo (`DEF`/`GRV`) ou, em repouso, há quantos
+  segundos desde a vibração mais recente entre as duas faixas.
+  Simplificação necessária pra caber ao lado do RPM em 16 colunas —
+  se precisar separar V1/V2 de novo, sobra espaço tirando o RPM da
+  mesma linha.
+- **Pendente**: `displayTelaBoot()` e as telas de `verificarPerifericos()`/
+  `countdown45s()` (`displayFase1*`/`displayFase2*`) ainda assumem 4
+  linhas de 20 colunas cada — vão precisar do mesmo ajuste pro 16x2,
+  senão o conteúdo das linhas 2 e 3 simplesmente não aparece no
+  hardware novo. Não alterado nesta mudança; fica pro próximo passo.
+
 ## Nova mudança — Modelo de decisão IDEAL/RUIM/PERIGOSO (LogicaAvaliacao)
 - `contarErros()` reescrita para classificar cada variável em 3 faixas
   nomeadas — **IDEAL** (dentro do setpoint±tolerância), **RUIM** (fora

@@ -262,8 +262,11 @@ void loop() {
   // Atualiza Andon
   setAndon(estado);
 
-  // Atualiza display (flags zeradas dentro, após exibição)
-  atualizarDisplay(temperatura, corrente, estado, erros);
+  // Atualiza display — tela fixa 16x2 (Passo 11): só o essencial
+  // (temperatura, corrente, RPM, vibração). Estado/erros não vão mais
+  // pro LCD, quem sinaliza isso é a torre (setAndon() já foi chamado
+  // acima); flags de vibração são zeradas dentro, após a exibição.
+  atualizarDisplay(temperatura, corrente);
 
   // Log Serial
   Serial.print(temperatura, 2); Serial.print(F("\t"));

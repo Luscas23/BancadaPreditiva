@@ -3,7 +3,7 @@
 #include "SensorVibracao.h" // vibr1, vibr2, ultimaVibr1Ms, ultimaVibr2Ms
 #include "SensorRPM.h"      // rpmAtual, estadoMotor, EstadoMotor
 
-LiquidCrystal_I2C lcd(0x27, 20, 4);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 void displayInit() {
   lcd.init();
@@ -11,89 +11,72 @@ void displayInit() {
 }
 
 // ================================================================
-//  FASE 3 — DISPLAY 20x4 (Passo 7/8 — lógica idêntica ao v6.0)
+//  FASE 3 — DISPLAY 16x2 (Passo 11 — hardware trocado de 20x4 p/ 16x2)
 //
-//  Linha 0: BANCADA PREDITIVA [BOM/DEF/GRV]
-//  Linha 1: T: XX.XC   I: X.XXA
-//  Linha 2: RPM:XXXX  E:X [estado motor]
-//  Linha 3: VIB1:XXs  VIB2:XXs
+//  Tela FIXA, sem rodízio: só o essencial fica sempre visível.
+//  Estado do Andon e contagem de erros NÃO aparecem mais aqui — quem
+//  sinaliza isso agora é só a torre física (setAndon() já é chamado
+//  separadamente no .ino). Motivo: 16 colunas não sobra espaço pra
+//  tudo que cabia nas 20x4, e vibr+temp+corrente+RPM é o que importa
+//  olhar direto na bancada.
+//
+//  Linha 0 (16 col): T:XX.XC I:X.XXA
+//  Linha 1 (16 col): RPM:XXXX V:XXXs   (ou V:DEF / V:GRV se houve
+//                    vibração neste ciclo)
+//
+//  Cada campo tem posição de cursor e largura fixas (sem lcd.clear()
+//  a cada ciclo, pra não piscar) — valor mais curto é completado com
+//  espaço até a largura do campo, igual já era feito no layout 20x4.
 // ================================================================
-void atualizarDisplay(float temperatura, float corrente, EstadoAndon estado, int erros) {
+void atualizarDisplay(float temperatura, float corrente) {
 
-  // Linha 0 — título + estado
+  // ---- Linha 0 — Temperatura e Corrente ----
   lcd.setCursor(0, 0);
-  lcd.print(F("BANCADA PREDITIVA   "));
-  lcd.setCursor(17, 0);
-  switch (estado) {
-    case ANDON_BOM:    lcd.print(F("BOM")); break;
-    case ANDON_DEFEITO:lcd.print(F("DEF")); break;
-    case ANDON_GRAVE:  lcd.print(F("GRV")); break;
-  }
-
-  // Linha 1 — Temperatura e Corrente
-  lcd.setCursor(0, 1);
   lcd.print(F("T:"));
+  lcd.setCursor(2, 0);
   if (erroSensor) {
-    lcd.print(F("ERRO  "));
+    lcd.print(F("ERRO "));           // campo de 5 colunas (2..6)
   } else {
     if (temperatura >= 0.0 && temperatura < 100.0) lcd.print(F(" "));
-    lcd.print(temperatura, 1);
-    lcd.print(F("C "));
+    lcd.print(temperatura, 1);       // 5 colunas: " XX.X" ou "XXX.X"
   }
-  lcd.setCursor(10, 1);
-  lcd.print(F("I:"));
-  lcd.print(corrente, 2);
-  lcd.print(F("A  "));
+  lcd.setCursor(7, 0);
+  lcd.print(F("C I:"));
+  lcd.print(corrente, 2);            // ACS712-5A: sempre "X.XX" (4 col)
+  lcd.print(F("A"));
 
-  // Linha 2 — RPM + erros + estado motor
-  lcd.setCursor(0, 2);
+  // ---- Linha 1 — RPM e vibração ----
+  lcd.setCursor(0, 1);
   lcd.print(F("RPM:"));
-  lcd.print((int)rpmAtual);
-  lcd.print(F("  "));
-  lcd.setCursor(10, 2);
-  lcd.print(F("E:"));
-  lcd.print(erros);
-  lcd.print(F(" "));
-  switch (estadoMotor) {
-    case MOTOR_PARADO:     lcd.print(F("PAR")); break;
-    case MOTOR_ACELERANDO: lcd.print(F("ACE")); break;
-    case MOTOR_OPERANDO:   lcd.print(F("OPE")); break;
-    case MOTOR_PAROU:      lcd.print(F("!!!"));  break;
-  }
+  int rpmInt = (int)rpmAtual;
+  lcd.setCursor(4, 1);
+  lcd.print(rpmInt);
+  int rpmDigitos = (rpmInt >= 1000) ? 4 : (rpmInt >= 100) ? 3 : (rpmInt >= 10) ? 2 : 1;
+  for (int i = rpmDigitos; i < 4; i++) lcd.print(F(" "));  // completa campo de 4 col (4..7)
 
-  // Linha 3 — tempo desde última vibração
+  // Campo de vibração: 7 colunas fixas (9..15)
   // Flags lidas ANTES de serem zeradas
-  unsigned long agora = millis();
-  lcd.setCursor(0, 3);
-
-  if (vibr1 || vibr2) {
-    // Vibração ativa neste ciclo
-    lcd.print(vibr2 ? F("VIB:GRAVE           ")
-                    : F("VIB:DEFEITO         "));
+  lcd.setCursor(9, 1);
+  if (vibr2) {
+    lcd.print(F("V:GRV  "));         // vibração faixa 2 (grave) neste ciclo
+  } else if (vibr1) {
+    lcd.print(F("V:DEF  "));         // vibração faixa 1 (defeito) neste ciclo
   } else {
-    // Mostra há quantos segundos foi a última vibração
-    lcd.print(F("V1:"));
-    if (ultimaVibr1Ms == 0) {
-      lcd.print(F("---s "));
+    // Sem vibração neste ciclo: mostra há quanto tempo foi a última,
+    // considerando as duas faixas juntas (a mais recente das duas) —
+    // simplificação necessária pra caber ao lado do RPM nas 16 colunas.
+    unsigned long agora = millis();
+    unsigned long ultimaVibrMs = (ultimaVibr2Ms > ultimaVibr1Ms) ? ultimaVibr2Ms : ultimaVibr1Ms;
+    if (ultimaVibrMs == 0) {
+      lcd.print(F("V:---s "));
     } else {
-      unsigned long s1 = (agora - ultimaVibr1Ms) / 1000;
-      if (s1 > 999) s1 = 999;
-      if (s1 < 10)  lcd.print(F("  "));
-      else if (s1 < 100) lcd.print(F(" "));
-      lcd.print(s1);
-      lcd.print(F("s "));
-    }
-    lcd.setCursor(10, 3);
-    lcd.print(F("V2:"));
-    if (ultimaVibr2Ms == 0) {
-      lcd.print(F("---s "));
-    } else {
-      unsigned long s2 = (agora - ultimaVibr2Ms) / 1000;
-      if (s2 > 999) s2 = 999;
-      if (s2 < 10)  lcd.print(F("  "));
-      else if (s2 < 100) lcd.print(F(" "));
-      lcd.print(s2);
-      lcd.print(F("s "));
+      unsigned long s = (agora - ultimaVibrMs) / 1000;
+      if (s > 999) s = 999;
+      lcd.print(F("V:"));
+      lcd.print(s);
+      lcd.print(F("s"));
+      int sDigitos = (s >= 100) ? 3 : (s >= 10) ? 2 : 1;
+      for (int i = 2 + sDigitos + 1; i < 7; i++) lcd.print(F(" "));  // completa campo de 7 col (9..15)
     }
   }
 
