@@ -1,8 +1,7 @@
-#include <Arduino.h>
 #include "Display.h"
-#include "SensorPT100.h"      // erroSensor
-#include "SensorRPM.h"        // rpmAtual, estadoMotor, EstadoMotor
-#include "SensorVibracao.h"   // vibr1, vibr2, ultimaVibr1Ms, ultimaVibr2Ms
+#include "SensorPT100.h"     // erroSensor
+#include "SensorVibracao.h" // vibr1, vibr2, ultimaVibr1Ms, ultimaVibr2Ms
+#include "SensorRPM.h"      // rpmAtual, estadoMotor, EstadoMotor
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -12,7 +11,7 @@ void displayInit() {
 }
 
 // ================================================================
-//  FASE 3 — DISPLAY 20x4
+//  FASE 3 — DISPLAY 20x4 (Passo 7/8 — lógica idêntica ao v6.0)
 //
 //  Linha 0: BANCADA PREDITIVA [BOM/DEF/GRV]
 //  Linha 1: T: XX.XC   I: X.XXA
@@ -63,7 +62,7 @@ void atualizarDisplay(float temperatura, float corrente, EstadoAndon estado, int
   }
 
   // Linha 3 — tempo desde última vibração
-  // (flags lidas ANTES de serem zeradas)
+  // Flags lidas ANTES de serem zeradas
   unsigned long agora = millis();
   lcd.setCursor(0, 3);
 
@@ -101,4 +100,106 @@ void atualizarDisplay(float temperatura, float corrente, EstadoAndon estado, int
   // Limpa flags APÓS avaliação e exibição
   vibr1 = false;
   vibr2 = false;
+}
+
+// ================================================================
+//  Passo 9 — telas de boot e das Fases 1 e 2
+//  Texto, posição de cursor e ordem idênticos ao que estava em
+//  verificarPerifericos()/countdown45s()/setup() no .ino do Passo 8.
+// ================================================================
+
+void displayTelaBoot() {
+  lcd.setCursor(0, 0); lcd.print(F("  BANCADA PREDITIVA "));
+  lcd.setCursor(0, 1); lcd.print(F("  MOTORES ELETRICOS "));
+  lcd.setCursor(0, 2); lcd.print(F("   TCC - ENGENHARIA "));
+  lcd.setCursor(0, 3); lcd.print(F("   Iniciando...     "));
+  delay(2000);
+}
+
+void displayFase1Inicio() {
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print(F("Verificando sistema "));
+  lcd.setCursor(0, 1); lcd.print(F("Aguarde...          "));
+}
+
+void displayFase1StatusDisplay() {
+  lcd.setCursor(0, 1); lcd.print(F("Display.........OK  "));
+}
+
+void displayFase1StatusPT100(bool ok) {
+  lcd.setCursor(0, 2); lcd.print(F("PT100..........."));
+  lcd.print(ok ? F("OK  ") : F("ERRO"));
+}
+
+void displayFase1StatusACS712(bool ok) {
+  lcd.setCursor(0, 3); lcd.print(F("ACS712.........."));
+  lcd.print(ok ? F("OK  ") : F("ERRO"));
+}
+
+void displayFase1Continuacao() {
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print(F("Verificando sistema "));
+}
+
+void displayFase1StatusHall(bool ok) {
+  lcd.setCursor(0, 1); lcd.print(F("Sensor Hall....."));
+  lcd.print(ok ? F("OK  ") : F("ERRO"));
+}
+
+void displayFase1StatusVibr1() {
+  lcd.setCursor(0, 2); lcd.print(F("Vibr. SW1.......OK  "));
+}
+
+void displayFase1StatusVibr2() {
+  lcd.setCursor(0, 3); lcd.print(F("Vibr. SW2.......OK  "));
+}
+
+void displayFase1TelaAndon() {
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print(F("Verificando sistema "));
+  lcd.setCursor(0, 1); lcd.print(F("Andon torre.....    "));
+}
+
+void displayFase1StatusAndon() {
+  lcd.setCursor(16, 1); lcd.print(F("OK  "));
+}
+
+void displayFase1StatusSD(bool ok) {
+  lcd.setCursor(0, 2); lcd.print(F("Cartao SD........"));
+  lcd.print(ok ? F("OK  ") : F("ERRO"));
+}
+
+void displayFase1Resultado(bool tudoOk, bool okPT100, bool okACS712, bool okHall) {
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print(F("=== RESULTADO ===   "));
+  lcd.setCursor(0, 1); lcd.print(tudoOk ? F("Todos OK!           ")
+                                        : F("Erros detectados!   "));
+  if (!tudoOk) {
+    lcd.setCursor(0, 2);
+    String falhas = "";
+    if (!okPT100)  falhas += "PT100 ";
+    if (!okACS712) falhas += "ACS ";
+    if (!okHall)   falhas += "HALL ";
+    falhas += "                ";
+    lcd.print(falhas.substring(0, 20));
+  }
+  lcd.setCursor(0, 3); lcd.print(F("Iniciando em 45s... "));
+}
+
+void displayFase2Countdown(unsigned long segundosRestantes) {
+  lcd.setCursor(0, 3);
+  lcd.print(F("Aguardando: "));
+  if (segundosRestantes < 10) lcd.print(F(" "));
+  lcd.print(segundosRestantes);
+  lcd.print(F("s   "));
+}
+
+void displayFase2IniciandoLeitura() {
+  lcd.clear();
+  lcd.setCursor(2, 1); lcd.print(F("INICIANDO LEITURA"));
+  lcd.setCursor(4, 2); lcd.print(F("DO MOTOR..."));
+}
+
+void displayLimpar() {
+  lcd.clear();
 }

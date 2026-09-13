@@ -6,7 +6,7 @@
 //   Andon            : Torre de sinalização (Verde / Amarelo / Vermelho)
 //   Autor            : Lucas Altruda Salce
 //   TCC              : Engenharia Mecatrônica
-//   Versão           : 6.0 (em refatoração modular — Passo 8/10 concluído)
+//   Versão           : 6.0 (em refatoração modular — Passo 9/10 concluído)
 //   Alimentação      : Power Bank 5V/2A 5.000mAh via USB (sem PC)
 //
 //   Histórico completo de melhorias (v4/v5/v6) e da refatoração
@@ -15,12 +15,13 @@
 
 // ----------------------------------------------------------------
 //  BIBLIOTECAS
+//  Passo 9 — Wire.h, LiquidCrystal_I2C.h, Adafruit_MAX31865.h e SD.h
+//  saíram daqui: nada neste arquivo as usa diretamente mais, cada
+//  uma já mora dentro do módulo que realmente precisa dela
+//  (Display, SensorPT100, LoggerSD). avr/wdt.h continua, porque o
+//  .ino chama wdt_disable()/wdt_enable()/wdt_reset() diretamente.
 // ----------------------------------------------------------------
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
-#include <Adafruit_MAX31865.h>
 #include <avr/wdt.h>             // Watchdog Timer
-#include <SD.h>                  // Gravação em cartão SD
 
 // ----------------------------------------------------------------
 //  MÓDULOS DO PROJETO
@@ -37,7 +38,7 @@
 // ----------------------------------------------------------------
 //  SETPOINTS E TOLERÂNCIAS (configuração de negócio)
 //  Ainda globais aqui — candidatos a um futuro Config.h com perfis
-//  de motor (127V/220V), mas isso fica fora do escopo do Passo 7.
+//  de motor (127V/220V), mas isso fica fora do escopo do Passo 9.
 // ----------------------------------------------------------------
 float setpointTemp    = 60.0;
 float toleranciaTemp  = 20.0;
@@ -79,9 +80,9 @@ EstadoSistema estadoAtual = ESTADO_INIT;
 // ----------------------------------------------------------------
 float temperatura  = 0.0;
 float corrente     = 0.0;
-// erroSensor agora mora em SensorPT100.cpp (extern via SensorPT100.h)
-// lcd agora mora em Display.cpp (extern via Display.h)
-// sdDisponivel agora mora em LoggerSD.cpp (extern via LoggerSD.h)
+// erroSensor mora em SensorPT100.cpp (extern via SensorPT100.h)
+// lcd mora em Display.cpp (extern via Display.h)
+// sdDisponivel mora em LoggerSD.cpp (extern via LoggerSD.h)
 
 bool okDisplay  = false;
 bool okPT100    = false;
@@ -101,85 +102,65 @@ void iniciarWatchdog() {
 
 // ================================================================
 //  FASE 1 — VERIFICAÇÃO DE PERIFÉRICOS
+//  Passo 9 — só orquestra: cada tela virou uma chamada a Display,
+//  cada verificação de hardware continua chamando o módulo do sensor.
 // ================================================================
 void verificarPerifericos() {
-  lcd.clear();
-  lcd.setCursor(0, 0); lcd.print(F("Verificando sistema "));
-  lcd.setCursor(0, 1); lcd.print(F("Aguarde...          "));
+  displayFase1Inicio();
   delay(1000);
 
   // Display
   okDisplay = true;
-  lcd.setCursor(0, 1); lcd.print(F("Display.........OK  "));
+  displayFase1StatusDisplay();
   delay(500);
 
   // PT100
   okPT100 = verificarPT100();
-  lcd.setCursor(0, 2); lcd.print(F("PT100..........."));
-  lcd.print(okPT100 ? F("OK  ") : F("ERRO"));
+  displayFase1StatusPT100(okPT100);
   delay(500);
 
   // ACS712
   okACS712 = verificarACS712();
-  lcd.setCursor(0, 3); lcd.print(F("ACS712.........."));
-  lcd.print(okACS712 ? F("OK  ") : F("ERRO"));
+  displayFase1StatusACS712(okACS712);
   delay(800);
 
-  lcd.clear();
-  lcd.setCursor(0, 0); lcd.print(F("Verificando sistema "));
+  displayFase1Continuacao();
 
   // Hall
   okHall = verificarHall();
-  lcd.setCursor(0, 1); lcd.print(F("Sensor Hall....."));
-  lcd.print(okHall ? F("OK  ") : F("ERRO"));
+  displayFase1StatusHall(okHall);
   delay(500);
 
   // SW-420: detecta estado de repouso do sensor
   verificarVibracao();
   okSW420_1 = true;  // Sensor presente e lido com sucesso
   okSW420_2 = true;
-  lcd.setCursor(0, 2); lcd.print(F("Vibr. SW1.......OK  "));
+  displayFase1StatusVibr1();
   delay(500);
-  lcd.setCursor(0, 3); lcd.print(F("Vibr. SW2.......OK  "));
+  displayFase1StatusVibr2();
   delay(500);
 
   // Andon
-  lcd.clear();
-  lcd.setCursor(0, 0); lcd.print(F("Verificando sistema "));
-  lcd.setCursor(0, 1); lcd.print(F("Andon torre.....    "));
+  displayFase1TelaAndon();
   setAndon(ANDON_GRAVE);   delay(300);
   setAndon(ANDON_DEFEITO); delay(300);
   setAndon(ANDON_BOM);     delay(300);
   setAndon(ANDON_GRAVE);
   okAndon = true;
-  lcd.setCursor(16, 1); lcd.print(F("OK  "));
+  displayFase1StatusAndon();
   delay(500);
 
   // Cartão SD (informativo: falha aqui não impede o resumo final)
   okSD = loggerSDInit();
   sdDisponivel = okSD;
-  lcd.setCursor(0, 2); lcd.print(F("Cartao SD........"));
-  lcd.print(okSD ? F("OK  ") : F("ERRO"));
+  displayFase1StatusSD(okSD);
   delay(500);
 
   // Resumo
   bool tudo_ok = okDisplay && okPT100 && okACS712 &&
                  okHall && okSW420_1 && okSW420_2 && okAndon;
 
-  lcd.clear();
-  lcd.setCursor(0, 0); lcd.print(F("=== RESULTADO ===   "));
-  lcd.setCursor(0, 1); lcd.print(tudo_ok ? F("Todos OK!           ")
-                                         : F("Erros detectados!   "));
-  if (!tudo_ok) {
-    lcd.setCursor(0, 2);
-    String falhas = "";
-    if (!okPT100)  falhas += "PT100 ";
-    if (!okACS712) falhas += "ACS ";
-    if (!okHall)   falhas += "HALL ";
-    falhas += "                ";
-    lcd.print(falhas.substring(0, 20));
-  }
-  lcd.setCursor(0, 3); lcd.print(F("Iniciando em 45s... "));
+  displayFase1Resultado(tudo_ok, okPT100, okACS712, okHall);
 
   if (tudo_ok) setAndon(ANDON_BOM);
   else { piscarAndon(ANDON_DEFEITO, 3, 300); setAndon(ANDON_DEFEITO); }
@@ -195,21 +176,15 @@ void countdown45s() {
   while (millis() - inicio < duracao) {
     wdt_reset();  // alimenta watchdog durante countdown
     unsigned long restante = (duracao - (millis() - inicio)) / 1000;
-    lcd.setCursor(0, 3);
-    lcd.print(F("Aguardando: "));
-    if (restante < 10) lcd.print(F(" "));
-    lcd.print(restante);
-    lcd.print(F("s   "));
+    displayFase2Countdown(restante);
     delay(500);
   }
 
-  lcd.clear();
-  lcd.setCursor(2, 1); lcd.print(F("INICIANDO LEITURA"));
-  lcd.setCursor(4, 2); lcd.print(F("DO MOTOR..."));
+  displayFase2IniciandoLeitura();
   piscarAndon(ANDON_BOM, 3, 200);
   setAndon(ANDON_BOM);
   delay(1500);
-  lcd.clear();
+  displayLimpar();
 }
 
 // ================================================================
@@ -231,11 +206,7 @@ void setup() {
 
   // LCD
   displayInit();
-  lcd.setCursor(0, 0); lcd.print(F("  BANCADA PREDITIVA "));
-  lcd.setCursor(0, 1); lcd.print(F("  MOTORES ELETRICOS "));
-  lcd.setCursor(0, 2); lcd.print(F("   TCC - ENGENHARIA "));
-  lcd.setCursor(0, 3); lcd.print(F("   Iniciando...     "));
-  delay(2000);
+  displayTelaBoot();
 
   // PT100
   pt100Init();
@@ -276,7 +247,7 @@ void loop() {
   bool vibr2_snapshot = vibr2;
   interrupts();
 
-  // Passo 7 — monta a leitura atual para a lógica pura de decisão
+  // Monta a leitura atual para a lógica pura de decisão
   LeituraAtual leitura;
   leitura.temperatura  = temperatura;
   leitura.corrente     = corrente;
