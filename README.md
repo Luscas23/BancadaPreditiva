@@ -28,7 +28,7 @@ mesmo tempo. Módulos extraídos até agora:
       verificação de presença na Fase 1).
 - [x] **Passo 5** — `SensorVibracao.h/.cpp` (ISRs SW-420 + debounce +
       tempo desde última vibração).
-- [ ] **Passo 6** — `SensorRPM.h/.cpp` (ISR Hall + cálculo de RPM +
+- [x] **Passo 6** — `SensorRPM.h/.cpp` (ISR Hall + cálculo de RPM +
       `EstadoMotor`).
 - [ ] **Passo 7** — `LogicaAvaliacao.h/.cpp` (`contarErros()` /
       `avaliarEstado()` sem hardware — puro cálculo, testável).
@@ -52,6 +52,7 @@ BancadaPreditiva/
 ├── SensorCorrente.h / SensorCorrente.cpp
 ├── SensorPT100.h / SensorPT100.cpp
 ├── SensorVibracao.h / SensorVibracao.cpp
+├── SensorRPM.h / SensorRPM.cpp
 ├── README.md
 └── CHANGELOG.md
 ```

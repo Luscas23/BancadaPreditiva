@@ -25,11 +25,12 @@
 #include "SensorCorrente.h"       // Módulo extraído — passo 3
 #include "SensorPT100.h"          // Módulo extraído — passo 4
 #include "SensorVibracao.h"       // Módulo extraído — passo 5
+#include "SensorRPM.h"            // Módulo extraído — passo 6
 
 // ----------------------------------------------------------------
 //  PINOS — Arduino Mega 2560
 // ----------------------------------------------------------------
-#define PIN_HALL           18    // RPM Hall KY-003   (INT5)
+// PIN_HALL agora vive em SensorRPM.h
 // PIN_SW420_1 / PIN_SW420_2 agora vivem em SensorVibracao.h
 // PIN_ACS712 agora vive em SensorCorrente.h
 // PIN_MAX31865_CS agora vive em SensorPT100.h
@@ -48,25 +49,9 @@
 // ----------------------------------------------------------------
 
 // ----------------------------------------------------------------
-//  RPM
+//  RPM — defines, ISR, EstadoMotor e calcularRPM() agora em
+//  SensorRPM.h/.cpp
 // ----------------------------------------------------------------
-#define PULSOS_POR_VOLTA   1
-#define INTERVALO_RPM_MS   1000
-
-volatile unsigned long pulsos    = 0;
-unsigned long ultimoCalculoRPM   = 0;
-float rpmAtual                   = 0.0;
-
-// Melhoria 6 — Estado do motor
-typedef enum {
-  MOTOR_PARADO,        // RPM = 0 desde o início
-  MOTOR_ACELERANDO,    // RPM > 0 mas ainda abaixo do setpoint
-  MOTOR_OPERANDO,      // RPM dentro da faixa nominal
-  MOTOR_PAROU          // RPM era > 0 e voltou a 0 (parada inesperada)
-} EstadoMotor;
-
-EstadoMotor estadoMotor     = MOTOR_PARADO;
-bool        motorJaGirou    = false;
 
 // ----------------------------------------------------------------
 //  VIBRAÇÃO — flags, debounce e timestamps agora em
@@ -136,10 +121,7 @@ bool okSD       = false;   // v6 — informativo; falha aqui NÃO bloqueia o fun
 // ================================================================
 //  INTERRUPÇÕES
 // ================================================================
-void ISR_hall() {
-  pulsos++;
-}
-
+// ISR_hall() agora vive em SensorRPM.cpp
 // ISR_vibr1() e ISR_vibr2() agora vivem em SensorVibracao.cpp
 
 // ================================================================
@@ -266,36 +248,8 @@ void gravarLeituraSD(EstadoAndon estado, int erros) {
 // mediaMovelTemp() e lerTemperatura() agora em SensorPT100.h/.cpp
 // lerCorrente() agora em SensorCorrente.h/.cpp (leitura RMS)
 
-// ----------------------------------------------------------------
-//  CÁLCULO DE RPM + Melhoria 6 (estado do motor)
-// ----------------------------------------------------------------
-void calcularRPM() {
-  unsigned long agora    = millis();
-  unsigned long intervalo = agora - ultimoCalculoRPM;
-  if (intervalo >= INTERVALO_RPM_MS) {
-    noInterrupts();
-    unsigned long p = pulsos;
-    pulsos = 0;
-    interrupts();
-
-    float novoRPM = (p / (float)PULSOS_POR_VOLTA) * (60000.0 / intervalo);
-
-    // Melhoria 6 — detecta estado do motor
-    if (novoRPM > 0) {
-      motorJaGirou = true;
-      float minRPM = setpointRPM - toleranciaRPM;
-      float maxRPM = setpointRPM + toleranciaRPM;
-      if (novoRPM >= minRPM && novoRPM <= maxRPM) estadoMotor = MOTOR_OPERANDO;
-      else                                          estadoMotor = MOTOR_ACELERANDO;
-    } else {
-      if (motorJaGirou) estadoMotor = MOTOR_PAROU;  // parada inesperada
-      else              estadoMotor = MOTOR_PARADO;
-    }
-
-    rpmAtual         = novoRPM;
-    ultimoCalculoRPM = agora;
-  }
-}
+// calcularRPM() agora em SensorRPM.h/.cpp — recebe setpointRPM e
+// toleranciaRPM por parâmetro em vez de ler globais diretamente
 
 // ================================================================
 //  FASE 1 — VERIFICAÇÃO DE PERIFÉRICOS
@@ -327,7 +281,7 @@ void verificarPerifericos() {
   lcd.setCursor(0, 0); lcd.print(F("Verificando sistema "));
 
   // Hall
-  okHall = (digitalRead(PIN_HALL) == LOW); // Corrigido: com INPUT_PULLUP, repouso é LOW (HIGH = ausente ou ímã passando)
+  okHall = verificarHall();
   lcd.setCursor(0, 1); lcd.print(F("Sensor Hall....."));
   lcd.print(okHall ? F("OK  ") : F("ERRO"));
   delay(500);
@@ -517,7 +471,7 @@ void setup() {
   setAndon(ANDON_GRAVE);
 
   // Entradas
-  pinMode(PIN_HALL,    INPUT_PULLUP);
+  // pinMode do Hall agora dentro de rpmInit()
   // pinMode dos SW-420 agora dentro de vibracaoInit()
 
   // LCD
@@ -533,9 +487,8 @@ void setup() {
   pt100Init();          // Módulo SensorPT100 — passo 4
 
   // Interrupções
-  attachInterrupt(digitalPinToInterrupt(PIN_HALL),    ISR_hall,  RISING);
+  rpmInit();            // Módulo SensorRPM — passo 6 (pinMode + attachInterrupt + referência de tempo)
   vibracaoInit();       // Módulo SensorVibracao — passo 5 (pinMode + repouso + attachInterrupt)
-  ultimoCalculoRPM = millis();
 
   // Fases de inicialização
   estadoAtual = ESTADO_VERIFICANDO;
@@ -565,7 +518,7 @@ void loop() {
   // Leituras
   temperatura = lerTemperatura();
   corrente    = lerCorrente();     // agora em SensorCorrente.cpp
-  calcularRPM();
+  calcularRPM(setpointRPM, toleranciaRPM);
 
   // Captura estado das flags atomicamente ANTES de qualquer avaliação
   // Corrigido (❻): snapshots agora são passados para contarErros/avaliarEstado

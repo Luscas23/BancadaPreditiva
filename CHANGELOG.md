@@ -2,6 +2,32 @@
 
 Formato: data, versão/etapa, o que mudou, por quê.
 
+## [Modularização] Passo 6 — SensorRPM extraído
+- Criados `SensorRPM.h` / `SensorRPM.cpp`.
+- Migrados: `PIN_HALL`, `PULSOS_POR_VOLTA`, `INTERVALO_RPM_MS`, o
+  `enum EstadoMotor`, as variáveis `rpmAtual`/`estadoMotor`/
+  `motorJaGirou`, a ISR `ISR_hall()` (agora `static`) e `calcularRPM()`.
+- **Primeira mudança de assinatura de função na extração**:
+  `calcularRPM()` passou a receber `setpointRPM` e `toleranciaRPM`
+  por parâmetro (`calcularRPM(setpointRPM, toleranciaRPM)`) em vez de
+  ler essas variáveis globais diretamente. Isso mantém o módulo do
+  sensor sem depender de saber onde a configuração de negócio mora —
+  o mesmo padrão que será usado na `LogicaAvaliacao` (passo 7). Os
+  valores continuam sendo lidos das variáveis globais no `.ino`, só a
+  passagem para o módulo mudou.
+- Nova função `rpmInit()` concentra `pinMode(INPUT_PULLUP)`,
+  `attachInterrupt(RISING)` e a inicialização de `ultimoCalculoRPM`
+  (antes eram 3 linhas soltas em pontos diferentes do `setup()`).
+- Nova função `verificarHall()` encapsula a checagem de presença da
+  Fase 1, mesma lógica (repouso = LOW com `INPUT_PULLUP`).
+- `pulsos` e `ultimoCalculoRPM` viraram `static` no `.cpp` — detalhe
+  interno do módulo, nenhum outro arquivo pode mexer neles.
+- Checagem estática: nenhuma referência a `PIN_HALL`, `pulsos`,
+  `ultimoCalculoRPM` ou `ISR_hall` restou fora do módulo;
+  `rpmAtual`/`estadoMotor`/`motorJaGirou` continuam acessados no
+  `.ino` exclusivamente via `extern` (usados em `contarErros()`,
+  `atualizarDisplay()`, `gravarLeituraSD()` e no log Serial).
+
 ## [Modularização] Passo 5 — SensorVibracao extraído
 - Criados `SensorVibracao.h` / `SensorVibracao.cpp`.
 - Migrados: `PIN_SW420_1`, `PIN_SW420_2`, `DEBOUNCE_MS`, as flags
