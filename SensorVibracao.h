@@ -23,13 +23,19 @@ extern volatile bool vibr2;
 extern unsigned long ultimaVibr1Ms;
 extern unsigned long ultimaVibr2Ms;
 
-// Melhoria 3 — estado de repouso do sensor, detectado em vibracaoInit()
+// Melhoria 3 — estado de repouso de cada sensor, detectado em
+// vibracaoInit() e usado ali mesmo pra escolher a borda de disparo da
+// interrupção (RISING se repouso=LOW, FALLING se repouso=HIGH).
+// Exposto aqui também pra quem quiser inspecionar a polaridade
+// detectada (ex.: diagnóstico/log).
 extern int sw420_1_repouso;
 extern int sw420_2_repouso;
 
 // Configura os pinos como entrada, detecta o nível de repouso de cada
-// sensor e liga as interrupções (RISING — corrigido na v5: CHANGE
-// causava duplo disparo por vibração). Chamar uma vez no setup().
+// sensor (Melhoria 3) e liga a interrupção na borda que SAI do
+// repouso — sempre de borda única, nunca CHANGE (corrigido na v5:
+// CHANGE causava duplo disparo por vibração). Chamar uma vez no
+// setup().
 void vibracaoInit();
 
 #endif
