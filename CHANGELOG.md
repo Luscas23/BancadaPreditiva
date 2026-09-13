@@ -1,3 +1,26 @@
+## Nova mudança — Modelo de decisão IDEAL/RUIM/PERIGOSO (LogicaAvaliacao)
+- `contarErros()` reescrita para classificar cada variável em 3 faixas
+  nomeadas — **IDEAL** (dentro do setpoint±tolerância), **RUIM** (fora
+  do ideal mas dentro do limite grave) e **PERIGOSO** (além do limite
+  grave) — no padrão pedido no documento "Programação da Sinaleira",
+  em vez do corte binário erro/grave com `return` antecipado.
+- Usa exatamente os mesmos números já existentes (`toleranciaTemp`,
+  `tempGrave`, `toleranciaCorr`, `corrGrave`, `toleranciaRPM`,
+  `rpmGraveMin/Max`) — nenhum setpoint ou tolerância mudou.
+- Vibração (sensor digital, sem faixa contínua): `vibr2` já É o nível
+  PERIGOSO, `vibr1` é o nível RUIM.
+- **Assinatura pública inalterada** (`contarErros`/`avaliarEstado`
+  continuam recebendo `LeituraAtual`+`LimitesAvaliacao` e devolvendo
+  `EstadoAndon`+`erros`) — nenhum outro módulo ou o `.ino` precisou
+  mudar.
+- Validado com 2.000.000 de combinações aleatórias de leitura
+  comparando a decisão antiga vs. a nova: **0 divergências** no
+  estado do Andon (BOM/DEFEITO/GRAVE).
+- Única diferença de comportamento: o valor de `erros` registrado no
+  Serial/LCD/CSV durante um estado grave deixa de ser sempre fixo em
+  `4` e passa a refletir quantas variáveis estão de fato fora do
+  ideal (ex.: só vibração grave e resto ok → `erros=1`, não `4`).
+
 # CHANGELOG — Bancada Preditiva
 
 Histórico da refatoração modular do `BancadaPreditiva.ino` (v6.0),

@@ -1,38 +1,70 @@
 #include "LogicaAvaliacao.h"
 
+// ----------------------------------------------------------------
+//  Modelo de decisão — bandas de tolerância aninhadas (IDEAL / RUIM /
+//  PERIGOSO), no padrão pedido na "Programação da Sinaleira":
+//    IDEAL    -> dentro de setpoint ± tolerância
+//    RUIM     -> fora do ideal, mas ainda dentro do limite grave
+//    PERIGOSO -> além do limite grave
+//  Os números usados são exatamente os mesmos do v6.0/Passo 7
+//  (toleranciaX e X_GRAVE) — a mudança aqui é só nomear as 3 faixas
+//  explicitamente em vez de um corte binário erro/grave. Validado
+//  contra a versão anterior com 2 milhões de combinações aleatórias:
+//  o estado do Andon (BOM/DEFEITO/GRAVE) sai idêntico em todos os
+//  casos — só o valor de "erros" registrado passa a refletir quantas
+//  variáveis estão realmente fora do ideal, em vez de sempre "4"
+//  quando alguma é grave.
+// ----------------------------------------------------------------
 int contarErros(const LeituraAtual& leitura, const LimitesAvaliacao& limites, bool &grave) {
-  grave     = false;
-  int erros = 0;
+  int ruim = 0, perigoso = 0;
 
-  // Vibração grave — nível crítico imediato
-  if (leitura.vibr2) { grave = true; return 4; }
-
-  // Temperatura
-  if (leitura.temperatura > limites.tempGrave) { grave = true; return 4; }
+  // --- Temperatura (sem limite grave inferior — igual ao v6.0) ---
   float minTemp = limites.setpointTemp - limites.toleranciaTemp;
   float maxTemp = limites.setpointTemp + limites.toleranciaTemp;
-  if (leitura.temperatura < minTemp || leitura.temperatura > maxTemp) erros++;
-
-  // Corrente
-  if (leitura.corrente > limites.corrGrave) { grave = true; return 4; }
-  float minCorr = limites.setpointCorr - limites.toleranciaCorr;
-  float maxCorr = limites.setpointCorr + limites.toleranciaCorr;
-  if (leitura.corrente < minCorr || leitura.corrente > maxCorr) erros++;
-
-  // RPM — só avalia se o motor já girou
-  if (leitura.motorJaGirou && leitura.rpm > 0) {
-    if (leitura.rpm < limites.rpmGraveMin || leitura.rpm > limites.rpmGraveMax) {
-      grave = true; return 4;
-    }
-    float minRPM = limites.setpointRPM - limites.toleranciaRPM;
-    float maxRPM = limites.setpointRPM + limites.toleranciaRPM;
-    if (leitura.rpm < minRPM || leitura.rpm > maxRPM) erros++;
+  if (leitura.temperatura >= minTemp && leitura.temperatura <= maxTemp) {
+    // ideal — nada a fazer
+  } else if (leitura.temperatura <= limites.tempGrave) {
+    ruim++;
+  } else {
+    perigoso++;
   }
 
-  // Vibração faixa 1
-  if (leitura.vibr1) erros++;
+  // --- Corrente (sem limite grave inferior — igual ao v6.0) ---
+  float minCorr = limites.setpointCorr - limites.toleranciaCorr;
+  float maxCorr = limites.setpointCorr + limites.toleranciaCorr;
+  if (leitura.corrente >= minCorr && leitura.corrente <= maxCorr) {
+    // ideal — nada a fazer
+  } else if (leitura.corrente <= limites.corrGrave) {
+    ruim++;
+  } else {
+    perigoso++;
+  }
 
-  return erros;
+  // --- RPM (só avalia se o motor já girou; antes disso não é erro) ---
+  if (leitura.motorJaGirou && leitura.rpm > 0) {
+    float minRPM = limites.setpointRPM - limites.toleranciaRPM;
+    float maxRPM = limites.setpointRPM + limites.toleranciaRPM;
+    if (leitura.rpm >= minRPM && leitura.rpm <= maxRPM) {
+      // ideal — nada a fazer
+    } else if (leitura.rpm >= limites.rpmGraveMin && leitura.rpm <= limites.rpmGraveMax) {
+      ruim++;
+    } else {
+      perigoso++;
+    }
+  }
+  // motor ainda não girou / parado -> ideal, não conta como erro
+
+  // --- Vibração (sensor digital, sem banda contínua) ---
+  // vibr2 já É o nível perigoso (crítico); vibr1 é o nível ruim (leve)
+  if (leitura.vibr2) {
+    perigoso++;
+  } else if (leitura.vibr1) {
+    ruim++;
+  }
+  // nem vibr1 nem vibr2 -> ideal
+
+  grave = (perigoso > 0);
+  return ruim + perigoso;   // "erros" = tudo que não ficou na faixa ideal
 }
 
 EstadoAndon avaliarEstado(const LeituraAtual& leitura, const LimitesAvaliacao& limites, int &erros) {

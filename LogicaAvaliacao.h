@@ -47,9 +47,11 @@ struct LimitesAvaliacao {
   float rpmGraveMax;
 };
 
-// Conta quantos erros "leves" existem e sinaliza (via 'grave') se algum
-// deles é grave. Em qualquer condição grave, retorna 4 imediatamente —
-// mesma regra do v6.0 original, só que sem variáveis globais.
+// Classifica cada variável em 3 faixas (IDEAL / RUIM / PERIGOSO), no
+// padrão da "Sinaleira": IDEAL = dentro do setpoint±tolerância,
+// RUIM = fora do ideal mas dentro do limite grave, PERIGOSO = além
+// do limite grave. Retorna a soma de RUIM+PERIGOSO ("erros") e
+// sinaliza 'grave' se alguma variável caiu em PERIGOSO.
 int contarErros(const LeituraAtual& leitura, const LimitesAvaliacao& limites, bool &grave);
 
 // Usa contarErros() para decidir o estado do Andon:
