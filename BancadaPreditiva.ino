@@ -244,6 +244,12 @@ void loop() {
   int erros = 0;
   EstadoAndon estado = avaliarEstado(leitura, limites, erros);
 
+  // Histerese assimétrica: piora aparece na hora, melhora só depois
+  // de alguns ciclos seguidos (ver Andon.h). 'estado' vira o valor já
+  // filtrado a partir daqui — Andon, Serial e CSV mostram o mesmo
+  // estado, sem risco de log e torre divergirem entre si.
+  estado = estabilizarAndon(estado);
+
   // Atualiza Andon
   setAndon(estado);
 

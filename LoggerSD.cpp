@@ -26,6 +26,12 @@ bool loggerSDInit() {
   if (!SD.exists(NOME_ARQUIVO_LOG)) {
     File arquivo = SD.open(NOME_ARQUIVO_LOG, FILE_WRITE);
     if (!arquivo) return false;
+    // Comentário (#) antes do cabeçalho: documenta o sentinela de
+    // falha do PT100 sem mexer na estrutura de colunas. Ferramentas
+    // que ignoram linhas iniciadas com # (ex.: pandas.read_csv(...,
+    // comment='#')) leem normal; um humano abrindo no Excel só vê
+    // uma linha de nota antes do cabeçalho de verdade.
+    arquivo.println(F("# temp_C = -999.00 indica falha do sensor PT100 (fault do MAX31865) - nao e uma leitura real"));
     arquivo.println(F("tempo_s,temp_C,corrente_A,rpm,erros,estado_motor,estado_andon"));
     arquivo.close();
   }

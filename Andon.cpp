@@ -19,6 +19,32 @@ void piscarAndon(EstadoAndon estado, int vezes, int ms) {
   }
 }
 
+EstadoAndon estabilizarAndon(EstadoAndon novoEstado) {
+  static EstadoAndon estadoConfirmado     = ANDON_BOM;
+  static int         ciclosMelhorSeguidos = 0;
+
+  if (novoEstado >= estadoConfirmado) {
+    // Piora ou mantém: reage na hora. EstadoAndon é 0=BOM..2=GRAVE,
+    // então ">=" cobre tanto "piorou" quanto "ficou igual".
+    estadoConfirmado     = novoEstado;
+    ciclosMelhorSeguidos = 0;
+  } else {
+    // Melhora: só confirma após N ciclos seguidos melhores que o
+    // estado atual. Não exige que sejam todos o MESMO estado-alvo —
+    // se oscilar entre DEFEITO e BOM antes de completar N, ainda
+    // conta como "seguido melhorando" e confirma o que a leitura
+    // disser no ciclo em que o contador fechar (comportamento
+    // deliberadamente simples; não é um controle de segurança).
+    ciclosMelhorSeguidos++;
+    if (ciclosMelhorSeguidos >= ANDON_CICLOS_CONFIRMACAO_MELHORA) {
+      estadoConfirmado     = novoEstado;
+      ciclosMelhorSeguidos = 0;
+    }
+  }
+
+  return estadoConfirmado;
+}
+
 // Passo 12 — ver comentário em Andon.h. `destino` não muda o texto
 // hoje (Serial e SD usam as mesmas 3 palavras); parâmetro nomeado
 // mas não usado no switch, então marcado (void) pra não gerar aviso
