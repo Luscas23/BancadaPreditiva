@@ -2,6 +2,27 @@
 
 Formato: data, versão/etapa, o que mudou, por quê.
 
+## [Modularização] Passo 4 — SensorPT100 extraído
+- Criados `SensorPT100.h` / `SensorPT100.cpp`.
+- Migrados: `PIN_MAX31865_CS`, `PT100_RNOM`, `PT100_RREF`, o objeto
+  `Adafruit_MAX31865 pt100`, o buffer da média móvel (`MEDIA_MOVEL_N`,
+  `bufferTemp`, `indexTemp`, `bufferPreenchido`), `mediaMovelTemp()`,
+  `lerTemperatura()` e a checagem de presença do sensor usada na
+  Fase 1 (`verificarPT100()`).
+- `erroSensor` virou `extern bool` declarado em `SensorPT100.h` e
+  definido em `SensorPT100.cpp` — continua acessível pelo `.ino`
+  (usado hoje só pelo display) sem precisar duplicar a variável.
+- Melhoria de encapsulamento: o buffer da média móvel e seu índice
+  agora são `static` (privados ao arquivo `.cpp`) — nenhum outro
+  módulo pode mexer neles por acidente, algo que não era garantido
+  quando eram globais soltos no `.ino`.
+- `setup()` chama `pt100Init()` em vez de `pt100.begin(...)` direto;
+  `verificarPerifericos()` chama `verificarPT100()` em vez de acessar
+  o objeto `pt100` diretamente.
+- Checagem estática: nenhuma referência a `pt100.`, `PT100_RNOM`,
+  `PT100_RREF`, `PIN_MAX31865_CS` ou ao buffer da média móvel restou
+  fora do módulo.
+
 ## [Modularização] Passo 3 — SensorCorrente extraído
 - Criados `SensorCorrente.h` / `SensorCorrente.cpp`.
 - Migrados: `PIN_ACS712`, `ACS712_SENS`, `ACS712_OFFSET`, `VCC`, `ADC_MAX`,

@@ -18,12 +18,12 @@
 // ----------------------------------------------------------------
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
-#include <Adafruit_MAX31865.h>
 #include <avr/wdt.h>             // Watchdog Timer (melhoria 4)
 #include <SD.h>                  // Gravação em cartão SD (v6) — já vem com a IDE Arduino
 
 #include "Andon.h"                // Módulo extraído — passo 2
 #include "SensorCorrente.h"       // Módulo extraído — passo 3
+#include "SensorPT100.h"          // Módulo extraído — passo 4
 
 // ----------------------------------------------------------------
 //  PINOS — Arduino Mega 2560
@@ -32,24 +32,16 @@
 #define PIN_SW420_2        3     // Vibração faixa 2  (INT1 — grave)
 #define PIN_HALL           18    // RPM Hall KY-003   (INT5)
 // PIN_ACS712 agora vive em SensorCorrente.h
+// PIN_MAX31865_CS agora vive em SensorPT100.h
 
-#define PIN_MAX31865_CS    10    // PT100 CS (SPI: SCK=52 MISO=50 MOSI=51)
 #define PIN_SD_CS          4     // Cartão SD CS — mesmo barramento SPI do PT100 (v6)
 
 // Pinos do Andon agora vivem em Andon.h
 
 // ----------------------------------------------------------------
-//  PT100 / MAX31865
+//  PT100 / MAX31865 — objeto pt100, defines e média móvel agora em
+//  SensorPT100.h/.cpp
 // ----------------------------------------------------------------
-Adafruit_MAX31865 pt100 = Adafruit_MAX31865(PIN_MAX31865_CS);
-#define PT100_RNOM         100.0
-#define PT100_RREF         430.0
-
-// Melhoria 5 — Média móvel temperatura (últimas 5 leituras)
-#define MEDIA_MOVEL_N      5
-float bufferTemp[MEDIA_MOVEL_N] = {0};
-int   indexTemp                 = 0;
-bool  bufferPreenchido          = false;
 
 // ----------------------------------------------------------------
 //  ACS712-5A — defines e lerCorrente() agora em SensorCorrente.h/.cpp
@@ -129,7 +121,7 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 // ----------------------------------------------------------------
 float temperatura  = 0.0;
 float corrente     = 0.0;
-bool  erroSensor   = false;
+// erroSensor agora vive em SensorPT100.h/.cpp (extern bool)
 
 // ----------------------------------------------------------------
 //  GRAVAÇÃO SD (v6)
@@ -298,35 +290,7 @@ void gravarLeituraSD(EstadoAndon estado, int erros) {
   arquivo.close();  // fecha = grava (flush) no cartão imediatamente
 }
 
-// ----------------------------------------------------------------
-//  MELHORIA 5 — Média móvel temperatura
-// ----------------------------------------------------------------
-float mediaMovelTemp(float novaLeitura) {
-  bufferTemp[indexTemp] = novaLeitura;
-  indexTemp = (indexTemp + 1) % MEDIA_MOVEL_N;
-  if (indexTemp == 0) bufferPreenchido = true;
-
-  int n    = bufferPreenchido ? MEDIA_MOVEL_N : indexTemp;
-  float soma = 0;
-  for (int i = 0; i < n; i++) soma += bufferTemp[i];
-  return soma / n;
-}
-
-// ----------------------------------------------------------------
-//  LEITURA DE TEMPERATURA PT100
-// ----------------------------------------------------------------
-float lerTemperatura() {
-  float t       = pt100.temperature(PT100_RNOM, PT100_RREF);
-  uint8_t fault = pt100.readFault();
-  if (fault) {
-    pt100.clearFault();
-    erroSensor = true;
-    return -999.0;
-  }
-  erroSensor = false;
-  return mediaMovelTemp(t);   // Melhoria 5
-}
-
+// mediaMovelTemp() e lerTemperatura() agora em SensorPT100.h/.cpp
 // lerCorrente() agora em SensorCorrente.h/.cpp (leitura RMS)
 
 // ----------------------------------------------------------------
@@ -374,11 +338,8 @@ void verificarPerifericos() {
   lcd.setCursor(0, 1); lcd.print(F("Display.........OK  "));
   delay(500);
 
-  // PT100
-  float testTemp = pt100.temperature(PT100_RNOM, PT100_RREF);
-  uint8_t fault  = pt100.readFault();
-  okPT100 = (fault == 0 && testTemp > -200.0 && testTemp < 500.0);
-  pt100.clearFault();
+  // PT100 — verificação agora encapsulada em SensorPT100
+  okPT100 = verificarPT100();
   lcd.setCursor(0, 2); lcd.print(F("PT100..........."));
   lcd.print(okPT100 ? F("OK  ") : F("ERRO"));
   delay(500);
@@ -598,7 +559,7 @@ void setup() {
   delay(2000);
 
   // PT100
-  pt100.begin(MAX31865_2WIRE);
+  pt100Init();          // Módulo SensorPT100 — passo 4
 
   // Interrupções
   attachInterrupt(digitalPinToInterrupt(PIN_HALL),    ISR_hall,  RISING);

@@ -24,7 +24,8 @@ mesmo tempo. Módulos extraídos até agora:
 - [x] **Passo 2** — `Andon.h/.cpp` (torre de sinalização).
 - [x] **Passo 3** — `SensorCorrente.h/.cpp` (leitura RMS do ACS712 +
       verificação de presença na Fase 1).
-- [ ] **Passo 4** — `SensorPT100.h/.cpp` (leitura + média móvel + fault).
+- [x] **Passo 4** — `SensorPT100.h/.cpp` (leitura + média móvel + fault +
+      verificação de presença na Fase 1).
 - [ ] **Passo 5** — `SensorVibracao.h/.cpp` (ISRs SW-420 + debounce +
       tempo desde última vibração).
 - [ ] **Passo 6** — `SensorRPM.h/.cpp` (ISR Hall + cálculo de RPM +
@@ -49,6 +50,7 @@ BancadaPreditiva/
 ├── BancadaPreditiva.ino   // setup()/loop() + o que ainda não foi extraído
 ├── Andon.h / Andon.cpp
 ├── SensorCorrente.h / SensorCorrente.cpp
+├── SensorPT100.h / SensorPT100.cpp
 ├── README.md
 └── CHANGELOG.md
 ```
