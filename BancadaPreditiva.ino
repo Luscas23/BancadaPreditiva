@@ -6,11 +6,11 @@
 //   Andon            : Torre de sinalização (Verde / Amarelo / Vermelho)
 //   Autor            : Lucas Altruda Salce
 //   TCC              : Engenharia Mecatrônica
-//   Versão           : 6.0
+//   Versão           : 6.0 (em refatoração modular — Passo 7/10 concluído)
 //   Alimentação      : Power Bank 5V/2A 5.000mAh via USB (sem PC)
 //
-//   Histórico de melhorias (v4, v5, v6): ver CHANGELOG.md
-//   Estrutura modular em andamento: ver CHANGELOG.md / README.md
+//   Histórico completo de melhorias (v4/v5/v6) e da refatoração
+//   modular está em CHANGELOG.md — aqui fica só o essencial.
 // ================================================================
 
 // ----------------------------------------------------------------
@@ -18,48 +18,29 @@
 // ----------------------------------------------------------------
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
-#include <avr/wdt.h>             // Watchdog Timer (melhoria 4)
-#include <SD.h>                  // Gravação em cartão SD (v6) — já vem com a IDE Arduino
-
-#include "Andon.h"                // Módulo extraído — passo 2
-#include "SensorCorrente.h"       // Módulo extraído — passo 3
-#include "SensorPT100.h"          // Módulo extraído — passo 4
-#include "SensorVibracao.h"       // Módulo extraído — passo 5
-#include "SensorRPM.h"            // Módulo extraído — passo 6
+#include <Adafruit_MAX31865.h>
+#include <avr/wdt.h>             // Watchdog Timer
+#include <SD.h>                  // Gravação em cartão SD
 
 // ----------------------------------------------------------------
-//  PINOS — Arduino Mega 2560
+//  MÓDULOS DO PROJETO
 // ----------------------------------------------------------------
-// PIN_HALL agora vive em SensorRPM.h
-// PIN_SW420_1 / PIN_SW420_2 agora vivem em SensorVibracao.h
-// PIN_ACS712 agora vive em SensorCorrente.h
-// PIN_MAX31865_CS agora vive em SensorPT100.h
-
-#define PIN_SD_CS          4     // Cartão SD CS — mesmo barramento SPI do PT100 (v6)
-
-// Pinos do Andon agora vivem em Andon.h
+#include "Andon.h"
+#include "SensorCorrente.h"
+#include "SensorPT100.h"
+#include "SensorVibracao.h"
+#include "SensorRPM.h"
+#include "LogicaAvaliacao.h"
 
 // ----------------------------------------------------------------
-//  PT100 / MAX31865 — objeto pt100, defines e média móvel agora em
-//  SensorPT100.h/.cpp
+//  PINOS que ainda não migraram para nenhum módulo
 // ----------------------------------------------------------------
+#define PIN_SD_CS          4     // Cartão SD CS — mesmo barramento SPI do PT100
 
 // ----------------------------------------------------------------
-//  ACS712-5A — defines e lerCorrente() agora em SensorCorrente.h/.cpp
-// ----------------------------------------------------------------
-
-// ----------------------------------------------------------------
-//  RPM — defines, ISR, EstadoMotor e calcularRPM() agora em
-//  SensorRPM.h/.cpp
-// ----------------------------------------------------------------
-
-// ----------------------------------------------------------------
-//  VIBRAÇÃO — flags, debounce e timestamps agora em
-//  SensorVibracao.h/.cpp
-// ----------------------------------------------------------------
-
-// ----------------------------------------------------------------
-//  SETPOINTS E TOLERÂNCIAS
+//  SETPOINTS E TOLERÂNCIAS (configuração de negócio)
+//  Ainda globais aqui — candidatos a um futuro Config.h com perfis
+//  de motor (127V/220V), mas isso fica fora do escopo do Passo 7.
 // ----------------------------------------------------------------
 float setpointTemp    = 60.0;
 float toleranciaTemp  = 20.0;
@@ -75,6 +56,14 @@ float setpointRPM     = 1740.0;
 float toleranciaRPM   = 140.0;
 #define RPM_GRAVE_MIN  1400.0
 #define RPM_GRAVE_MAX  2000.0
+
+// Passo 7 — empacota os setpoints acima para o módulo LogicaAvaliacao.
+// Montada uma única vez: nada aqui muda em runtime hoje.
+LimitesAvaliacao limites = {
+  setpointTemp, toleranciaTemp, TEMP_GRAVE,
+  setpointCorr, toleranciaCorr, CORR_GRAVE,
+  setpointRPM, toleranciaRPM, RPM_GRAVE_MIN, RPM_GRAVE_MAX
+};
 
 // ----------------------------------------------------------------
 //  ESTADOS DO SISTEMA
@@ -98,10 +87,12 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 // ----------------------------------------------------------------
 float temperatura  = 0.0;
 float corrente     = 0.0;
-// erroSensor agora vive em SensorPT100.h/.cpp (extern bool)
+// erroSensor agora mora em SensorPT100.cpp (extern via SensorPT100.h)
 
 // ----------------------------------------------------------------
-//  GRAVAÇÃO SD (v6)
+//  GRAVAÇÃO SD
+//  Ainda não extraída para um módulo próprio (candidato ao Passo 8,
+//  junto com o Display).
 // ----------------------------------------------------------------
 const char NOME_ARQUIVO_LOG[] = "LOG.CSV";
 bool sdDisponivel        = false;  // false = cartão ausente/falhou, bancada continua sem gravar
@@ -114,90 +105,13 @@ bool okHall     = false;
 bool okSW420_1  = false;
 bool okSW420_2  = false;
 bool okAndon    = false;
-bool okSD       = false;   // v6 — informativo; falha aqui NÃO bloqueia o funcionamento da bancada
-
-// sw420_1_repouso / sw420_2_repouso agora vivem em SensorVibracao.h/.cpp
+bool okSD       = false;   // informativo; falha aqui NÃO bloqueia o funcionamento da bancada
 
 // ================================================================
-//  INTERRUPÇÕES
-// ================================================================
-// ISR_hall() agora vive em SensorRPM.cpp
-// ISR_vibr1() e ISR_vibr2() agora vivem em SensorVibracao.cpp
-
-// ================================================================
-//  FUNÇÕES AUXILIARES
-// ================================================================
-
-// setAndon() e piscarAndon() agora em Andon.h/.cpp
-
-// ----------------------------------------------------------------
-//  MELHORIA 2+1 — Contagem de erros unificada
-//  Recebe snapshots das flags de vibração capturados atomicamente
-//  no loop() para evitar leitura inconsistente entre avaliação e display
-//  Nota: risco residual baixo (ciclo de 500 ms), mas documentado no TCC
-// ----------------------------------------------------------------
-int contarErros(bool &grave, bool snap_vibr1, bool snap_vibr2) {
-  grave    = false;
-  int erros = 0;
-
-  // Vibração grave — nível crítico imediato
-  if (snap_vibr2) { grave = true; return 4; }
-
-  // Temperatura
-  if (temperatura > TEMP_GRAVE) { grave = true; return 4; }
-  float minTemp = setpointTemp - toleranciaTemp;
-  float maxTemp = setpointTemp + toleranciaTemp;
-  if (temperatura < minTemp || temperatura > maxTemp) erros++;
-
-  // Corrente
-  if (corrente > CORR_GRAVE) { grave = true; return 4; }
-  float minCorr = setpointCorr - toleranciaCorr;
-  float maxCorr = setpointCorr + toleranciaCorr;
-  if (corrente < minCorr || corrente > maxCorr) erros++;
-
-  // RPM — só avalia se motor já girou (melhoria 6)
-  if (motorJaGirou && rpmAtual > 0) {
-    if (rpmAtual < RPM_GRAVE_MIN || rpmAtual > RPM_GRAVE_MAX) {
-      grave = true; return 4;
-    }
-    float minRPM = setpointRPM - toleranciaRPM;
-    float maxRPM = setpointRPM + toleranciaRPM;
-    if (rpmAtual < minRPM || rpmAtual > maxRPM) erros++;
-  }
-
-  // Vibração faixa 1
-  if (snap_vibr1) erros++;
-
-  return erros;
-}
-
-// ----------------------------------------------------------------
-//  Avalia estado do Andon usando contagem unificada
-// ----------------------------------------------------------------
-EstadoAndon avaliarEstado(int &erros, bool snap_vibr1, bool snap_vibr2) {
-  bool grave = false;
-  erros = contarErros(grave, snap_vibr1, snap_vibr2);
-
-  if (grave || erros >= 3) return ANDON_GRAVE;
-  if (erros >= 1)          return ANDON_DEFEITO;
-  return ANDON_BOM;
-}
-
-// ----------------------------------------------------------------
-//  MELHORIA 4 — Watchdog: reinicia o Arduino se travar por >8s
-// ----------------------------------------------------------------
-void iniciarWatchdog() {
-  wdt_enable(WDTO_8S);
-}
-
-// ----------------------------------------------------------------
-//  V6 — GRAVAÇÃO EM CARTÃO SD
+//  GRAVAÇÃO EM CARTÃO SD
 //  Tratada como recurso secundário: se o cartão falhar ou for
 //  removido, a bancada continua monitorando o motor normalmente.
-//  Cada chamada abre, escreve e fecha o arquivo (flush imediato) —
-//  protege contra perda de dados se a bancada perder energia
-//  (alimentação agora vem do power bank, não de fonte controlada).
-// ----------------------------------------------------------------
+// ================================================================
 bool iniciarSD() {
   pinMode(53, OUTPUT);  // Mantém o SS de hardware do Mega como saída
 
@@ -205,7 +119,6 @@ bool iniciarSD() {
     return false;
   }
 
-  // Cria o arquivo com cabeçalho apenas se ainda não existir
   if (!SD.exists(NOME_ARQUIVO_LOG)) {
     File arquivo = SD.open(NOME_ARQUIVO_LOG, FILE_WRITE);
     if (!arquivo) return false;
@@ -245,11 +158,12 @@ void gravarLeituraSD(EstadoAndon estado, int erros) {
   arquivo.close();  // fecha = grava (flush) no cartão imediatamente
 }
 
-// mediaMovelTemp() e lerTemperatura() agora em SensorPT100.h/.cpp
-// lerCorrente() agora em SensorCorrente.h/.cpp (leitura RMS)
-
-// calcularRPM() agora em SensorRPM.h/.cpp — recebe setpointRPM e
-// toleranciaRPM por parâmetro em vez de ler globais diretamente
+// ----------------------------------------------------------------
+//  WATCHDOG: reinicia o Arduino se travar por >8s
+// ----------------------------------------------------------------
+void iniciarWatchdog() {
+  wdt_enable(WDTO_8S);
+}
 
 // ================================================================
 //  FASE 1 — VERIFICAÇÃO DE PERIFÉRICOS
@@ -265,13 +179,13 @@ void verificarPerifericos() {
   lcd.setCursor(0, 1); lcd.print(F("Display.........OK  "));
   delay(500);
 
-  // PT100 — verificação agora encapsulada em SensorPT100
+  // PT100
   okPT100 = verificarPT100();
   lcd.setCursor(0, 2); lcd.print(F("PT100..........."));
   lcd.print(okPT100 ? F("OK  ") : F("ERRO"));
   delay(500);
 
-  // ACS712 — verificação agora encapsulada em SensorCorrente
+  // ACS712
   okACS712 = verificarACS712();
   lcd.setCursor(0, 3); lcd.print(F("ACS712.........."));
   lcd.print(okACS712 ? F("OK  ") : F("ERRO"));
@@ -286,8 +200,8 @@ void verificarPerifericos() {
   lcd.print(okHall ? F("OK  ") : F("ERRO"));
   delay(500);
 
-  // Melhoria 3 — repouso do SW-420 já detectado em vibracaoInit() (setup);
-  // aqui só reporta o status no display
+  // SW-420: detecta estado de repouso do sensor
+  verificarVibracao();
   okSW420_1 = true;  // Sensor presente e lido com sucesso
   okSW420_2 = true;
   lcd.setCursor(0, 2); lcd.print(F("Vibr. SW1.......OK  "));
@@ -307,7 +221,7 @@ void verificarPerifericos() {
   lcd.setCursor(16, 1); lcd.print(F("OK  "));
   delay(500);
 
-  // V6 — Cartão SD (informativo: falha aqui não impede o resumo final)
+  // Cartão SD (informativo: falha aqui não impede o resumo final)
   okSD = iniciarSD();
   sdDisponivel = okSD;
   lcd.setCursor(0, 2); lcd.print(F("Cartao SD........"));
@@ -345,7 +259,7 @@ void countdown45s() {
   unsigned long duracao = 45000UL;
 
   while (millis() - inicio < duracao) {
-    wdt_reset();  // Melhoria 4 — alimenta watchdog durante countdown
+    wdt_reset();  // alimenta watchdog durante countdown
     unsigned long restante = (duracao - (millis() - inicio)) / 1000;
     lcd.setCursor(0, 3);
     lcd.print(F("Aguardando: "));
@@ -399,7 +313,7 @@ void atualizarDisplay(EstadoAndon estado, int erros) {
   lcd.print(corrente, 2);
   lcd.print(F("A  "));
 
-  // Linha 2 — RPM + erros + estado motor (melhoria 6)
+  // Linha 2 — RPM + erros + estado motor
   lcd.setCursor(0, 2);
   lcd.print(F("RPM:"));
   lcd.print((int)rpmAtual);
@@ -415,8 +329,8 @@ void atualizarDisplay(EstadoAndon estado, int erros) {
     case MOTOR_PAROU:      lcd.print(F("!!!"));  break;
   }
 
-  // Linha 3 — Melhoria 7: tempo desde última vibração
-  // Melhoria 1 corrigida: flags lidas ANTES de serem zeradas
+  // Linha 3 — tempo desde última vibração
+  // (flags lidas ANTES de serem zeradas)
   unsigned long agora = millis();
   lcd.setCursor(0, 3);
 
@@ -451,7 +365,7 @@ void atualizarDisplay(EstadoAndon estado, int erros) {
     }
   }
 
-  // Melhoria 1 corrigida — limpa flags APÓS avaliação e exibição
+  // Limpa flags APÓS avaliação e exibição
   vibr1 = false;
   vibr2 = false;
 }
@@ -460,19 +374,18 @@ void atualizarDisplay(EstadoAndon estado, int erros) {
 //  SETUP
 // ================================================================
 void setup() {
-  // Melhoria 4 — desabilita watchdog residual de reset anterior
+  // Desabilita watchdog residual de reset anterior
   wdt_disable();
 
   Serial.begin(9600);
   Serial.println(F("=== BANCADA PREDITIVA v6.0 ==="));
 
-  // Saídas
-  andonInit();          // Módulo Andon — passo 2
+  // Módulos de hardware
+  andonInit();
   setAndon(ANDON_GRAVE);
 
-  // Entradas
-  // pinMode do Hall agora dentro de rpmInit()
-  // pinMode dos SW-420 agora dentro de vibracaoInit()
+  vibracaoInit();
+  rpmInit();
 
   // LCD
   lcd.init();
@@ -484,11 +397,7 @@ void setup() {
   delay(2000);
 
   // PT100
-  pt100Init();          // Módulo SensorPT100 — passo 4
-
-  // Interrupções
-  rpmInit();            // Módulo SensorRPM — passo 6 (pinMode + attachInterrupt + referência de tempo)
-  vibracaoInit();       // Módulo SensorVibracao — passo 5 (pinMode + repouso + attachInterrupt)
+  pt100Init();
 
   // Fases de inicialização
   estadoAtual = ESTADO_VERIFICANDO;
@@ -498,9 +407,9 @@ void setup() {
   countdown45s();
 
   estadoAtual = ESTADO_LENDO;
-  inicioLeituraMs = millis();  // v6 — referência t=0 do CSV: começo da Fase 3, não do boot
+  inicioLeituraMs = millis();  // referência t=0 do CSV: começo da Fase 3, não do boot
 
-  // Melhoria 4 — ativa watchdog apenas após inicialização completa
+  // Ativa watchdog apenas após inicialização completa
   iniciarWatchdog();
 
   Serial.println(F("Temp(C)\tCorr(A)\tRPM\tErros\tMotor\tEstado"));
@@ -513,28 +422,35 @@ void setup() {
 // ================================================================
 void loop() {
 
-  wdt_reset();  // Melhoria 4 — alimenta watchdog a cada ciclo
+  wdt_reset();  // alimenta watchdog a cada ciclo
 
   // Leituras
   temperatura = lerTemperatura();
-  corrente    = lerCorrente();     // agora em SensorCorrente.cpp
+  corrente    = lerCorrente();
   calcularRPM(setpointRPM, toleranciaRPM);
 
   // Captura estado das flags atomicamente ANTES de qualquer avaliação
-  // Corrigido (❻): snapshots agora são passados para contarErros/avaliarEstado
   noInterrupts();
   bool vibr1_snapshot = vibr1;
   bool vibr2_snapshot = vibr2;
   interrupts();
 
-  // Avaliação unificada (melhoria 2) — usa snapshots, não as flags voláteis
+  // Passo 7 — monta a leitura atual para a lógica pura de decisão
+  LeituraAtual leitura;
+  leitura.temperatura  = temperatura;
+  leitura.corrente     = corrente;
+  leitura.rpm          = rpmAtual;
+  leitura.motorJaGirou = motorJaGirou;
+  leitura.vibr1        = vibr1_snapshot;
+  leitura.vibr2        = vibr2_snapshot;
+
   int erros = 0;
-  EstadoAndon estado = avaliarEstado(erros, vibr1_snapshot, vibr2_snapshot);
+  EstadoAndon estado = avaliarEstado(leitura, limites, erros);
 
   // Atualiza Andon
   setAndon(estado);
 
-  // Atualiza display (flags zeradas dentro, após exibição — melhoria 1)
+  // Atualiza display (flags zeradas dentro, após exibição)
   atualizarDisplay(estado, erros);
 
   // Log Serial
@@ -554,7 +470,7 @@ void loop() {
     case ANDON_GRAVE:  Serial.println(F("GRAVE"));   break;
   }
 
-  // V6 — Grava a mesma leitura no cartão SD (se disponível)
+  // Grava a mesma leitura no cartão SD (se disponível)
   gravarLeituraSD(estado, erros);
 
   delay(500);

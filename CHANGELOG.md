@@ -1,128 +1,82 @@
-# Changelog — Bancada Preditiva de Motores Elétricos
+# Changelog — Bancada Preditiva
 
-Formato: data, versão/etapa, o que mudou, por quê.
+Histórico da refatoração modular. Formato livre, mais recente no topo.
 
-## [Modularização] Passo 6 — SensorRPM extraído
-- Criados `SensorRPM.h` / `SensorRPM.cpp`.
-- Migrados: `PIN_HALL`, `PULSOS_POR_VOLTA`, `INTERVALO_RPM_MS`, o
-  `enum EstadoMotor`, as variáveis `rpmAtual`/`estadoMotor`/
-  `motorJaGirou`, a ISR `ISR_hall()` (agora `static`) e `calcularRPM()`.
-- **Primeira mudança de assinatura de função na extração**:
-  `calcularRPM()` passou a receber `setpointRPM` e `toleranciaRPM`
-  por parâmetro (`calcularRPM(setpointRPM, toleranciaRPM)`) em vez de
-  ler essas variáveis globais diretamente. Isso mantém o módulo do
-  sensor sem depender de saber onde a configuração de negócio mora —
-  o mesmo padrão que será usado na `LogicaAvaliacao` (passo 7). Os
-  valores continuam sendo lidos das variáveis globais no `.ino`, só a
-  passagem para o módulo mudou.
-- Nova função `rpmInit()` concentra `pinMode(INPUT_PULLUP)`,
-  `attachInterrupt(RISING)` e a inicialização de `ultimoCalculoRPM`
-  (antes eram 3 linhas soltas em pontos diferentes do `setup()`).
-- Nova função `verificarHall()` encapsula a checagem de presença da
-  Fase 1, mesma lógica (repouso = LOW com `INPUT_PULLUP`).
-- `pulsos` e `ultimoCalculoRPM` viraram `static` no `.cpp` — detalhe
-  interno do módulo, nenhum outro arquivo pode mexer neles.
-- Checagem estática: nenhuma referência a `PIN_HALL`, `pulsos`,
-  `ultimoCalculoRPM` ou `ISR_hall` restou fora do módulo;
-  `rpmAtual`/`estadoMotor`/`motorJaGirou` continuam acessados no
-  `.ino` exclusivamente via `extern` (usados em `contarErros()`,
-  `atualizarDisplay()`, `gravarLeituraSD()` e no log Serial).
+## [Não lançado] — Refatoração modular em andamento
 
-## [Modularização] Passo 5 — SensorVibracao extraído
-- Criados `SensorVibracao.h` / `SensorVibracao.cpp`.
-- Migrados: `PIN_SW420_1`, `PIN_SW420_2`, `DEBOUNCE_MS`, as flags
-  `volatile bool vibr1/vibr2`, os timestamps `ultimaVibr1Ms/2Ms`, os
-  estados de repouso `sw420_1_repouso/2_repouso`, e as ISRs
-  `ISR_vibr1()`/`ISR_vibr2()` (agora `static`, privadas ao módulo).
-- Nova função `vibracaoInit()` concentra `pinMode()` dos dois pinos,
-  a detecção do repouso (melhoria 3) e os dois `attachInterrupt(...,
-  RISING)` — antes espalhados em três pontos diferentes do `setup()`.
-- `verificarPerifericos()` não repete mais a leitura de repouso (já
-  feita em `vibracaoInit()` antes da Fase 1 começar); mantém os
-  mesmos indicadores `okSW420_1`/`okSW420_2` e as mensagens no
-  display. Comportamento equivalente: o nível dos pinos não muda
-  entre `vibracaoInit()` e a Fase 1.
-- `ultimoDebounce1/2` viraram `static` no `.cpp` — são detalhe interno
-  do debounce, nenhum outro módulo precisa vê-los.
-- Primeiro módulo com interrupções: o contrato de leitura do `loop()`
-  principal (`noInterrupts()`/`interrupts()` para tirar um snapshot
-  atômico das flags antes de avaliar erros, e zerá-las só depois de
-  exibidas no display) foi preservado sem alteração — continua no
-  `.ino`, já que ainda é lógica de orquestração, não do sensor em si.
-- Checagem estática: nenhuma referência a `PIN_SW420_1/2`,
-  `DEBOUNCE_MS`, `ultimoDebounce1/2` ou às ISRs de vibração restou
-  fora do módulo; `vibr1`/`vibr2`/timestamps continuam acessados no
-  `.ino` exclusivamente via `extern`.
+### Passo 7 — Extrai módulo LogicaAvaliacao
+- Novo: `LogicaAvaliacao.h` / `LogicaAvaliacao.cpp`, com `contarErros()` e
+  `avaliarEstado()` migrados do `.ino`.
+- Novo: struct `LeituraAtual` (temperatura, corrente, rpm, motorJaGirou,
+  vibr1, vibr2) — tudo que a lógica de decisão precisa saber sobre o motor
+  em um dado ciclo.
+- Novo: struct `LimitesAvaliacao` (setpoints/tolerâncias de temperatura,
+  corrente e RPM) — reúne numa struct só o que antes eram `#define`/globais
+  soltos, preparando terreno para trocar perfil de motor (127V/220V) sem
+  tocar na lógica de decisão.
+- `contarErros()`/`avaliarEstado()` não leem mais nenhuma variável global de
+  hardware — recebem tudo via `const LeituraAtual&` e `const LimitesAvaliacao&`.
+  Nenhuma regra de negócio mudou: mesma ordem de checagem, mesmos limiares,
+  mesmo retorno antecipado (4) em condição grave.
+- `LogicaAvaliacao.h`/`.cpp` não incluem `<Arduino.h>` — só `Andon.h` (que
+  também não inclui `<Arduino.h>`), para reaproveitar o enum `EstadoAndon`.
+  Esse é o primeiro módulo 100% livre de dependência de hardware: já está
+  pronto para testes nativos se o projeto migrar para PlatformIO.
+- `main.ino`: `loop()` agora monta um `LeituraAtual` a partir das leituras
+  do ciclo e chama `avaliarEstado(leitura, limites, erros)`. Os setpoints
+  continuam como globais no `.ino` por enquanto; são empacotados uma única
+  vez em `LimitesAvaliacao limites`.
 
-## [Modularização] Passo 4 — SensorPT100 extraído
-- Criados `SensorPT100.h` / `SensorPT100.cpp`.
-- Migrados: `PIN_MAX31865_CS`, `PT100_RNOM`, `PT100_RREF`, o objeto
-  `Adafruit_MAX31865 pt100`, o buffer da média móvel (`MEDIA_MOVEL_N`,
-  `bufferTemp`, `indexTemp`, `bufferPreenchido`), `mediaMovelTemp()`,
-  `lerTemperatura()` e a checagem de presença do sensor usada na
-  Fase 1 (`verificarPT100()`).
-- `erroSensor` virou `extern bool` declarado em `SensorPT100.h` e
-  definido em `SensorPT100.cpp` — continua acessível pelo `.ino`
-  (usado hoje só pelo display) sem precisar duplicar a variável.
-- Melhoria de encapsulamento: o buffer da média móvel e seu índice
-  agora são `static` (privados ao arquivo `.cpp`) — nenhum outro
-  módulo pode mexer neles por acidente, algo que não era garantido
-  quando eram globais soltos no `.ino`.
-- `setup()` chama `pt100Init()` em vez de `pt100.begin(...)` direto;
-  `verificarPerifericos()` chama `verificarPT100()` em vez de acessar
-  o objeto `pt100` diretamente.
-- Checagem estática: nenhuma referência a `pt100.`, `PT100_RNOM`,
-  `PT100_RREF`, `PIN_MAX31865_CS` ou ao buffer da média móvel restou
-  fora do módulo.
+### Passo 6 — Extrai módulo SensorRPM
+- Novo: `SensorRPM.h` / `SensorRPM.cpp`: pino do Hall, `EstadoMotor`,
+  `rpmAtual`/`estadoMotor`/`motorJaGirou`, a ISR (agora `static`) e
+  `calcularRPM()`.
+- `rpmInit()` concentra `pinMode`, `attachInterrupt` e a inicialização da
+  referência de tempo.
+- `verificarHall()` encapsula a checagem da Fase 1.
+- `calcularRPM()` passou a receber `setpointRPM`/`toleranciaRPM` por
+  parâmetro em vez de ler os globais diretamente.
 
-## [Modularização] Passo 3 — SensorCorrente extraído
-- Criados `SensorCorrente.h` / `SensorCorrente.cpp`.
-- Migrados: `PIN_ACS712`, `ACS712_SENS`, `ACS712_OFFSET`, `VCC`, `ADC_MAX`,
-  `AMOSTRAS_CORRENTE`, a função `lerCorrente()` (RMS) e a checagem de
-  presença do sensor usada na Fase 1 (`verificarACS712()`).
-- `BancadaPreditiva.ino` passa a incluir `SensorCorrente.h` e chamar
-  `lerCorrente()` / `verificarACS712()` — nenhuma lógica foi alterada,
-  apenas reposicionamento de código.
-- Checagem estática: nenhuma redefinição de `PIN_ACS712` ou das
-  constantes do ACS712 restou no `.ino`.
+### Passo 5 — Extrai módulo SensorVibracao
+- Novo: `SensorVibracao.h` / `SensorVibracao.cpp`: pinos dos dois SW-420,
+  `vibr1`/`vibr2` (volatile), debounce, timestamps da última vibração
+  (`ultimaVibr1Ms`/`ultimaVibr2Ms`) e o estado de repouso detectado na
+  Fase 1.
+- `vibracaoInit()` concentra `pinMode` e os dois `attachInterrupt`.
+- `verificarVibracao()` encapsula a checagem da Fase 1.
+- As ISRs mantêm a mesma lógica de debounce; o `loop()` do `.ino` continua
+  responsável por capturar o snapshot atômico (`noInterrupts()`/
+  `interrupts()`) antes de qualquer avaliação.
 
-## [Modularização] Passo 2 — Andon extraído
-- Criados `Andon.h` / `Andon.cpp`.
-- Migrados: `PIN_ANDON_VERDE/AMARELO/VERMELHO`, `enum EstadoAndon`,
+### Passo 4 — Extrai módulo SensorPT100
+- Novo: `SensorPT100.h` / `SensorPT100.cpp`: pino, constantes (`PT100_RNOM`,
+  `PT100_RREF`), o objeto `pt100`, o buffer da média móvel e
+  `pt100Init()`, `lerTemperatura()`, `verificarPT100()`.
+- `erroSensor` virou `extern bool`: continua acessível pelo `.ino` (o
+  display ainda o usa) sem ficar duplicado.
+- Buffer da média móvel e índice agora são `static` dentro do `.cpp`.
+
+### Passo 3 — Extrai módulo SensorCorrente
+- Novo: `SensorCorrente.h` / `SensorCorrente.cpp`: pino do ACS712,
+  constantes e `lerCorrente()`/`verificarACS712()`.
+- `verificarPerifericos()` agora chama `okACS712 = verificarACS712()` em
+  vez de fazer o `analogRead`/threshold manualmente.
+
+### Passo 2 — Extrai módulo Andon
+- Novo: `Andon.h` / `Andon.cpp`: pinos, `enum EstadoAndon`, `andonInit()`,
   `setAndon()`, `piscarAndon()`.
-- Nova função `andonInit()` concentra os três `pinMode()` que antes
-  estavam soltos no `setup()`.
-- `BancadaPreditiva.ino` passa a incluir `Andon.h` — nenhuma lógica
-  foi alterada, apenas reposicionamento de código.
+- `setup()` passou a chamar `andonInit()` em vez de 3 `pinMode()` soltos.
 
-## [Modularização] Passo 1 — Baseline congelada
-- Código v6.0 (monolítico) copiado sem alterações para a estrutura de
-  projeto do Arduino IDE (pasta `BancadaPreditiva/` = nome do `.ino`).
-- Repositório Git iniciado.
-- Objetivo: ponto de retorno seguro antes de iniciar a extração dos
-  módulos.
+### Passo 1 — Baseline congelada em Git
+- Código v6.0 copiado sem alteração para `BancadaPreditiva/`.
+- Repositório Git iniciado (commit `baseline`, depois `.gitignore`).
+- `README.md` e este `CHANGELOG.md` criados.
 
----
-
-## v6.0 (histórico anterior à modularização)
-- Gravação das leituras em cartão SD (módulo SPI).
-- Arquivo `LOG.CSV`: `tempo_s,temp,corrente,rpm,erros,estadoMotor,estadoAndon`
-  — 1 linha por ciclo.
-- Falha no SD não trava a bancada (monitoramento do motor é a função
-  principal; gravação é tratada como recurso secundário tolerante a falha).
-
-## v5.0
-- SW-420: `CHANGE` → `RISING` (evita duplo disparo por vibração).
-- `lerCorrente()` com RMS para corrente CA (média simples tendia a zero).
-- Verificação do sensor Hall corrigida: repouso = LOW com `INPUT_PULLUP`.
-- Snapshots de vibração capturados atomicamente e passados para
-  `contarErros()` / `avaliarEstado()`.
-
-## v4.0
-- Watchdog (reinicia se travar por mais de 8s).
-- Média móvel na leitura do PT100.
-- Detecção de estado do motor (parado / acelerando / operando / parou).
-- Correção das flags de vibração.
-- Contagem de erros unificada.
-- Tempo desde a última vibração exibido no display.
-- Leitura do SW-420 mais robusta.
+## v6.0 — Baseline monolítica (antes da refatoração)
+- Watchdog | Média móvel PT100 | Detecção de motor parado
+- Flags de vibração corrigidas | Contagem de erros unificada
+- Tempo desde última vibração | SW-420 mais robusto (RISING em vez de CHANGE)
+- `lerCorrente()` com RMS para corrente CA
+- Verificação do Hall corrigida (repouso = LOW com `INPUT_PULLUP`)
+- Snapshots de vibração capturados atomicamente antes da avaliação
+- Gravação das leituras em cartão SD (`LOG.CSV`), tolerante a falha

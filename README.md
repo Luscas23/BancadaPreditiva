@@ -1,66 +1,50 @@
-# Bancada Preditiva de Motores Elétricos
+# Bancada Preditiva — Refatoração Modular
 
-TCC — Engenharia Mecatrônica — Lucas Altruda Salce
-
-Bancada de manutenção preditiva para motores elétricos, com leitura de
-temperatura (PT100 + MAX31865), corrente (ACS712-5A), rotação (sensor
-Hall KY-003) e vibração (2x SW-420), sinalização Andon e gravação de
-log em cartão SD.
-
-## Ambiente
-
-Arduino IDE, usando abas (cada aba é um `.h`/`.cpp` na mesma pasta do
-`.ino`). Abra `BancadaPreditiva.ino` — as demais abas aparecem
-automaticamente ao lado.
-
-## Progresso da modularização
-
-O código nasceu como um único arquivo `.ino` (v6.0, ver `CHANGELOG.md`)
-e está sendo dividido em módulos por hardware/responsabilidade, para
-que novas mudanças não exijam mexer em várias partes do arquivo ao
-mesmo tempo. Módulos extraídos até agora:
-
-- [x] **Passo 1** — Baseline v6.0 congelada em Git.
-- [x] **Passo 2** — `Andon.h/.cpp` (torre de sinalização).
-- [x] **Passo 3** — `SensorCorrente.h/.cpp` (leitura RMS do ACS712 +
-      verificação de presença na Fase 1).
-- [x] **Passo 4** — `SensorPT100.h/.cpp` (leitura + média móvel + fault +
-      verificação de presença na Fase 1).
-- [x] **Passo 5** — `SensorVibracao.h/.cpp` (ISRs SW-420 + debounce +
-      tempo desde última vibração).
-- [x] **Passo 6** — `SensorRPM.h/.cpp` (ISR Hall + cálculo de RPM +
-      `EstadoMotor`).
-- [ ] **Passo 7** — `LogicaAvaliacao.h/.cpp` (`contarErros()` /
-      `avaliarEstado()` sem hardware — puro cálculo, testável).
-- [ ] **Passo 8** — `Display.h/.cpp` e `LoggerSD.h/.cpp`.
-- [ ] **Passo 9** — `main`/`.ino` como orquestrador fino (`setup()`/`loop()`
-      só chamando módulos).
-- [ ] **Passo 10** — Novas mudanças do TCC, já encaixadas nos módulos
-      certos.
-
-Cada módulo é extraído um de cada vez: extrai → compila → grava na
-bancada real → confirma que o comportamento não mudou → só então segue
-para o próximo. Isso isola o risco: se algo quebrar, dá pra saber
-exatamente qual módulo causou.
+Projeto de TCC (Engenharia Mecatrônica): bancada de manutenção preditiva
+de motores elétricos, em refatoração de um único `.ino` monolítico para
+uma estrutura modular em abas do Arduino IDE.
 
 ## Estrutura atual
 
 ```
 BancadaPreditiva/
-├── BancadaPreditiva.ino   // setup()/loop() + o que ainda não foi extraído
-├── Andon.h / Andon.cpp
-├── SensorCorrente.h / SensorCorrente.cpp
-├── SensorPT100.h / SensorPT100.cpp
-├── SensorVibracao.h / SensorVibracao.cpp
-├── SensorRPM.h / SensorRPM.cpp
-├── README.md
-└── CHANGELOG.md
+├── BancadaPreditiva.ino    // orquestração: setup(), loop(), Fases 1-3, SD
+├── Andon.h / .cpp           // torre de sinalização (Passo 2)
+├── SensorCorrente.h / .cpp  // ACS712 (Passo 3)
+├── SensorPT100.h / .cpp     // PT100 + MAX31865 + média móvel (Passo 4)
+├── SensorVibracao.h / .cpp  // 2x SW-420 (Passo 5)
+├── SensorRPM.h / .cpp       // Hall + EstadoMotor (Passo 6)
+├── LogicaAvaliacao.h / .cpp // contarErros()/avaliarEstado(), sem hardware (Passo 7)
+├── CHANGELOG.md
+└── README.md
 ```
 
-## Configuração de motor (127V x 220V)
+## Progresso da modularização
 
-Atualmente os setpoints/tolerâncias de corrente (`setpointCorr`,
-`toleranciaCorr`, `CORR_GRAVE`) ainda estão como variáveis/`#define`
-soltos no `.ino` — comentário original já documenta os dois perfis
-(127V e 220V). A troca dinâmica entre perfis está planejada para
-quando `Config.h` for extraído (ver plano de modularização).
+- [x] Passo 1 — Baseline congelada em Git
+- [x] Passo 2 — Módulo Andon
+- [x] Passo 3 — Módulo SensorCorrente
+- [x] Passo 4 — Módulo SensorPT100
+- [x] Passo 5 — Módulo SensorVibracao
+- [x] Passo 6 — Módulo SensorRPM
+- [x] Passo 7 — Módulo LogicaAvaliacao (lógica pura, testável)
+- [ ] Passo 8 — Extrair Display e LoggerSD (SD ainda está no `.ino`)
+- [ ] Passo 9 — Enxugar `main.ino` (o que sobrar deve ser só orquestração)
+- [ ] Passo 10 — Implementar as novas mudanças do projeto
+
+## Como validar cada passo
+
+1. Abra `BancadaPreditiva.ino` no Arduino IDE — os `.h`/`.cpp` aparecem
+   como abas ao lado do sketch principal.
+2. Compile (Verificar).
+3. Se possível, grave na bancada real e confirme que o comportamento é
+   idêntico ao da baseline v6.0.
+4. `git add -A && git commit -m "Passo 7: extrai módulo LogicaAvaliacao"`
+
+## Por que LogicaAvaliacao importa para o TCC
+
+É o único módulo que não depende de `<Arduino.h>`. Recebe tudo (leituras e
+limites) por parâmetro via `LeituraAtual`/`LimitesAvaliacao` e devolve o
+estado do Andon — puro cálculo. Isso permite, no futuro, escrever testes
+automatizados da regra de negócio sem precisar da bancada ligada, o que é
+um ponto forte de rigor de engenharia para o trabalho.
