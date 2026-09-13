@@ -6,22 +6,11 @@
 //   Andon            : Torre de sinalização (Verde / Amarelo / Vermelho)
 //   Autor            : Lucas Altruda Salce
 //   TCC              : Engenharia Mecatrônica
-//   Versão           : 6.1 (em refatoração modular — ver CHANGELOG.md)
+//   Versão           : 6.0
 //   Alimentação      : Power Bank 5V/2A 5.000mAh via USB (sem PC)
-//   Melhorias v4     : Watchdog | Média móvel PT100 | Motor parado
-//                      Flags vibração corrigidas | Contagem unificada
-//                      Tempo desde última vibração | SW-420 robusto
-//   Correções v5     :  SW-420 CHANGE→RISING (evita duplo disparo)
-//                       lerCorrente() com RMS para corrente CA
-//                       Verificação Hall: repouso=LOW com INPUT_PULLUP
-//                       Snapshots de vibração capturados atomicamente
-//                         e passados para contarErros/avaliarEstado
-//   Adição v6        :  Gravação das leituras em cartão SD (módulo SPI)
-//                       Arquivo LOG.CSV: tempo_s,temp,corrente,rpm,
-//                         erros,estadoMotor,estadoAndon — 1 linha/ciclo
-//                       Falha no SD não trava a bancada (monitoramento
-//                         do motor é a função principal; gravação é
-//                         tratada como recurso secundário tolerante a falha)
+//
+//   Histórico de melhorias (v4, v5, v6): ver CHANGELOG.md
+//   Estrutura modular em andamento: ver CHANGELOG.md / README.md
 // ================================================================
 
 // ----------------------------------------------------------------
@@ -32,7 +21,9 @@
 #include <Adafruit_MAX31865.h>
 #include <avr/wdt.h>             // Watchdog Timer (melhoria 4)
 #include <SD.h>                  // Gravação em cartão SD (v6) — já vem com a IDE Arduino
-#include "Andon.h"                // Módulo Andon (torre de sinalização) — v6.1
+
+#include "Andon.h"                // Módulo extraído — passo 2
+#include "SensorCorrente.h"       // Módulo extraído — passo 3
 
 // ----------------------------------------------------------------
 //  PINOS — Arduino Mega 2560
@@ -40,12 +31,12 @@
 #define PIN_SW420_1        2     // Vibração faixa 1  (INT0 — defeito)
 #define PIN_SW420_2        3     // Vibração faixa 2  (INT1 — grave)
 #define PIN_HALL           18    // RPM Hall KY-003   (INT5)
-#define PIN_ACS712         A0    // Corrente ACS712-5A
+// PIN_ACS712 agora vive em SensorCorrente.h
 
 #define PIN_MAX31865_CS    10    // PT100 CS (SPI: SCK=52 MISO=50 MOSI=51)
 #define PIN_SD_CS          4     // Cartão SD CS — mesmo barramento SPI do PT100 (v6)
 
-// PIN_ANDON_VERDE / AMARELO / VERMELHO agora estão em Andon.h (v6.1)
+// Pinos do Andon agora vivem em Andon.h
 
 // ----------------------------------------------------------------
 //  PT100 / MAX31865
@@ -61,13 +52,8 @@ int   indexTemp                 = 0;
 bool  bufferPreenchido          = false;
 
 // ----------------------------------------------------------------
-//  ACS712-5A
+//  ACS712-5A — defines e lerCorrente() agora em SensorCorrente.h/.cpp
 // ----------------------------------------------------------------
-#define ACS712_SENS        0.185
-#define ACS712_OFFSET      2.5
-#define VCC                5.0
-#define ADC_MAX            1023.0
-#define AMOSTRAS_CORRENTE  100
 
 // ----------------------------------------------------------------
 //  RPM
@@ -130,8 +116,6 @@ typedef enum {
   ESTADO_AGUARDANDO,
   ESTADO_LENDO
 } EstadoSistema;
-
-// EstadoAndon agora está em Andon.h (v6.1)
 
 EstadoSistema estadoAtual = ESTADO_INIT;
 
@@ -197,7 +181,7 @@ void ISR_vibr2() {
 //  FUNÇÕES AUXILIARES
 // ================================================================
 
-// setAndon() e piscarAndon() agora estão em Andon.cpp (v6.1)
+// setAndon() e piscarAndon() agora em Andon.h/.cpp
 
 // ----------------------------------------------------------------
 //  MELHORIA 2+1 — Contagem de erros unificada
@@ -343,22 +327,7 @@ float lerTemperatura() {
   return mediaMovelTemp(t);   // Melhoria 5
 }
 
-// ----------------------------------------------------------------
-//  LEITURA DE CORRENTE ACS712 — RMS (corrente alternada)
-//  Corrigido: média simples em CA tende a zero; RMS é o correto
-// ----------------------------------------------------------------
-float lerCorrente() {
-  float soma = 0;
-  for (int i = 0; i < AMOSTRAS_CORRENTE; i++) {
-    float tensao  = (analogRead(PIN_ACS712) / ADC_MAX) * VCC;
-    float amostra = (tensao - ACS712_OFFSET) / ACS712_SENS;
-    soma += amostra * amostra;
-    delayMicroseconds(100);
-  }
-  float rms = sqrt(soma / AMOSTRAS_CORRENTE);
-  if (rms < 0.05) rms = 0.0;
-  return rms;
-}
+// lerCorrente() agora em SensorCorrente.h/.cpp (leitura RMS)
 
 // ----------------------------------------------------------------
 //  CÁLCULO DE RPM + Melhoria 6 (estado do motor)
@@ -414,9 +383,8 @@ void verificarPerifericos() {
   lcd.print(okPT100 ? F("OK  ") : F("ERRO"));
   delay(500);
 
-  // ACS712
-  int adcVal = analogRead(PIN_ACS712);
-  okACS712 = (adcVal > 350 && adcVal < 680);
+  // ACS712 — verificação agora encapsulada em SensorCorrente
+  okACS712 = verificarACS712();
   lcd.setCursor(0, 3); lcd.print(F("ACS712.........."));
   lcd.print(okACS712 ? F("OK  ") : F("ERRO"));
   delay(800);
@@ -609,10 +577,10 @@ void setup() {
   wdt_disable();
 
   Serial.begin(9600);
-  Serial.println(F("=== BANCADA PREDITIVA v6.1 ==="));
+  Serial.println(F("=== BANCADA PREDITIVA v6.0 ==="));
 
   // Saídas
-  andonInit();              // v6.1 — configuração dos pinos movida para Andon.cpp
+  andonInit();          // Módulo Andon — passo 2
   setAndon(ANDON_GRAVE);
 
   // Entradas
@@ -665,7 +633,7 @@ void loop() {
 
   // Leituras
   temperatura = lerTemperatura();
-  corrente    = lerCorrente();
+  corrente    = lerCorrente();     // agora em SensorCorrente.cpp
   calcularRPM();
 
   // Captura estado das flags atomicamente ANTES de qualquer avaliação

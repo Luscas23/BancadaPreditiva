@@ -1,60 +1,55 @@
-# Changelog — Bancada de Manutenção Preditiva de Motores Elétricos
+# Changelog — Bancada Preditiva de Motores Elétricos
 
-Histórico de versões extraído do cabeçalho do código-fonte (`BancadaPreditiva.ino`)
-e convertido para este arquivo a partir da v6.0, congelada como baseline em
-13/09/2026 antes do início da refatoração modular.
+Formato: data, versão/etapa, o que mudou, por quê.
 
-## [6.1] - Refatoração modular (em andamento)
-### Alterado
-- **Módulo Andon extraído** para `Andon.h` / `Andon.cpp` (abas do Arduino IDE):
-  pinos (`PIN_ANDON_*`), enum `EstadoAndon`, `setAndon()` e `piscarAndon()`
-  saíram do `.ino` principal, sem nenhuma mudança de comportamento.
-- Nova função `andonInit()` centraliza a configuração dos pinos (antes eram
-  3 `pinMode()` soltos dentro de `setup()`).
-- `.ino` principal agora inclui `Andon.h`; nenhum outro trecho do código
-  precisou mudar, pois as assinaturas das funções permaneceram idênticas.
-- Este é o **primeiro módulo** da refatoração (o mais simples, sem I/O de
-  sensores), servindo de modelo para os próximos: `SensorCorrente`,
-  `SensorPT100`, `SensorVibracao`, `SensorRPM`, `LogicaAvaliacao`,
-  `Display` e `LoggerSD`.
+## [Modularização] Passo 3 — SensorCorrente extraído
+- Criados `SensorCorrente.h` / `SensorCorrente.cpp`.
+- Migrados: `PIN_ACS712`, `ACS712_SENS`, `ACS712_OFFSET`, `VCC`, `ADC_MAX`,
+  `AMOSTRAS_CORRENTE`, a função `lerCorrente()` (RMS) e a checagem de
+  presença do sensor usada na Fase 1 (`verificarACS712()`).
+- `BancadaPreditiva.ino` passa a incluir `SensorCorrente.h` e chamar
+  `lerCorrente()` / `verificarACS712()` — nenhuma lógica foi alterada,
+  apenas reposicionamento de código.
+- Checagem estática: nenhuma redefinição de `PIN_ACS712` ou das
+  constantes do ACS712 restou no `.ino`.
 
-## [6.0] - Baseline (código monolítico)
-### Adicionado
-- Gravação das leituras em cartão SD (módulo SPI).
-- Arquivo `LOG.CSV`: `tempo_s,temp,corrente,rpm,erros,estadoMotor,estadoAndon` — 1 linha por ciclo.
-- Falha no SD não trava a bancada: monitoramento do motor é a função principal;
-  gravação é tratada como recurso secundário tolerante a falha.
+## [Modularização] Passo 2 — Andon extraído
+- Criados `Andon.h` / `Andon.cpp`.
+- Migrados: `PIN_ANDON_VERDE/AMARELO/VERMELHO`, `enum EstadoAndon`,
+  `setAndon()`, `piscarAndon()`.
+- Nova função `andonInit()` concentra os três `pinMode()` que antes
+  estavam soltos no `setup()`.
+- `BancadaPreditiva.ino` passa a incluir `Andon.h` — nenhuma lógica
+  foi alterada, apenas reposicionamento de código.
 
-## [5.0]
-### Corrigido
-- SW-420: interrupção trocada de `CHANGE` para `RISING` (evitava duplo disparo por vibração).
-- `lerCorrente()` reescrita para calcular RMS, correto para corrente alternada
-  (a média simples tendia a zero em CA).
-- Verificação do sensor Hall corrigida: com `INPUT_PULLUP`, repouso = LOW.
-- Snapshots das flags de vibração agora capturados atomicamente e passados
-  como parâmetro para `contarErros()` / `avaliarEstado()`, evitando leitura
-  inconsistente entre avaliação e exibição no display.
-
-## [4.0]
-### Adicionado
-- Watchdog Timer (reinicia o Arduino se travar por mais de 8s).
-- Média móvel nas leituras do PT100 (últimas 5 leituras).
-- Detecção do estado do motor (parado / acelerando / operando / parou).
-- Contagem de erros unificada (`contarErros` / `avaliarEstado`).
-- Tempo desde a última vibração exibido no display.
-- Tratamento mais robusto do sensor SW-420 (detecção do nível de repouso).
+## [Modularização] Passo 1 — Baseline congelada
+- Código v6.0 (monolítico) copiado sem alterações para a estrutura de
+  projeto do Arduino IDE (pasta `BancadaPreditiva/` = nome do `.ino`).
+- Repositório Git iniciado.
+- Objetivo: ponto de retorno seguro antes de iniciar a extração dos
+  módulos.
 
 ---
 
-## Como usar este arquivo daqui para frente
+## v6.0 (histórico anterior à modularização)
+- Gravação das leituras em cartão SD (módulo SPI).
+- Arquivo `LOG.CSV`: `tempo_s,temp,corrente,rpm,erros,estadoMotor,estadoAndon`
+  — 1 linha por ciclo.
+- Falha no SD não trava a bancada (monitoramento do motor é a função
+  principal; gravação é tratada como recurso secundário tolerante a falha).
 
-A cada mudança relevante, adicione uma nova seção no topo, no formato:
+## v5.0
+- SW-420: `CHANGE` → `RISING` (evita duplo disparo por vibração).
+- `lerCorrente()` com RMS para corrente CA (média simples tendia a zero).
+- Verificação do sensor Hall corrigida: repouso = LOW com `INPUT_PULLUP`.
+- Snapshots de vibração capturados atomicamente e passados para
+  `contarErros()` / `avaliarEstado()`.
 
-```
-## [Não lançado] ou [x.y] - AAAA-MM-DD
-### Adicionado / Corrigido / Alterado / Removido
-- Descrição objetiva da mudança e, se fizer sentido, o motivo.
-```
-
-Isso substitui o antigo hábito de acumular o histórico dentro do comentário
-no topo do `.ino`, que ficava cada vez mais longo e difícil de acompanhar.
+## v4.0
+- Watchdog (reinicia se travar por mais de 8s).
+- Média móvel na leitura do PT100.
+- Detecção de estado do motor (parado / acelerando / operando / parou).
+- Correção das flags de vibração.
+- Contagem de erros unificada.
+- Tempo desde a última vibração exibido no display.
+- Leitura do SW-420 mais robusta.
