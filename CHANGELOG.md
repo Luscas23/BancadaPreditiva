@@ -4,6 +4,20 @@ Histórico de versões extraído do cabeçalho do código-fonte (`BancadaPrediti
 e convertido para este arquivo a partir da v6.0, congelada como baseline em
 13/09/2026 antes do início da refatoração modular.
 
+## [6.1] - Refatoração modular (em andamento)
+### Alterado
+- **Módulo Andon extraído** para `Andon.h` / `Andon.cpp` (abas do Arduino IDE):
+  pinos (`PIN_ANDON_*`), enum `EstadoAndon`, `setAndon()` e `piscarAndon()`
+  saíram do `.ino` principal, sem nenhuma mudança de comportamento.
+- Nova função `andonInit()` centraliza a configuração dos pinos (antes eram
+  3 `pinMode()` soltos dentro de `setup()`).
+- `.ino` principal agora inclui `Andon.h`; nenhum outro trecho do código
+  precisou mudar, pois as assinaturas das funções permaneceram idênticas.
+- Este é o **primeiro módulo** da refatoração (o mais simples, sem I/O de
+  sensores), servindo de modelo para os próximos: `SensorCorrente`,
+  `SensorPT100`, `SensorVibracao`, `SensorRPM`, `LogicaAvaliacao`,
+  `Display` e `LoggerSD`.
+
 ## [6.0] - Baseline (código monolítico)
 ### Adicionado
 - Gravação das leituras em cartão SD (módulo SPI).

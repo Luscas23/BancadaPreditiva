@@ -6,7 +6,7 @@
 //   Andon            : Torre de sinalização (Verde / Amarelo / Vermelho)
 //   Autor            : Lucas Altruda Salce
 //   TCC              : Engenharia Mecatrônica
-//   Versão           : 6.0
+//   Versão           : 6.1 (em refatoração modular — ver CHANGELOG.md)
 //   Alimentação      : Power Bank 5V/2A 5.000mAh via USB (sem PC)
 //   Melhorias v4     : Watchdog | Média móvel PT100 | Motor parado
 //                      Flags vibração corrigidas | Contagem unificada
@@ -32,6 +32,7 @@
 #include <Adafruit_MAX31865.h>
 #include <avr/wdt.h>             // Watchdog Timer (melhoria 4)
 #include <SD.h>                  // Gravação em cartão SD (v6) — já vem com a IDE Arduino
+#include "Andon.h"                // Módulo Andon (torre de sinalização) — v6.1
 
 // ----------------------------------------------------------------
 //  PINOS — Arduino Mega 2560
@@ -44,9 +45,7 @@
 #define PIN_MAX31865_CS    10    // PT100 CS (SPI: SCK=52 MISO=50 MOSI=51)
 #define PIN_SD_CS          4     // Cartão SD CS — mesmo barramento SPI do PT100 (v6)
 
-#define PIN_ANDON_VERDE    22
-#define PIN_ANDON_AMARELO  24
-#define PIN_ANDON_VERMELHO 26
+// PIN_ANDON_VERDE / AMARELO / VERMELHO agora estão em Andon.h (v6.1)
 
 // ----------------------------------------------------------------
 //  PT100 / MAX31865
@@ -132,11 +131,7 @@ typedef enum {
   ESTADO_LENDO
 } EstadoSistema;
 
-typedef enum {
-  ANDON_BOM,
-  ANDON_DEFEITO,
-  ANDON_GRAVE
-} EstadoAndon;
+// EstadoAndon agora está em Andon.h (v6.1)
 
 EstadoSistema estadoAtual = ESTADO_INIT;
 
@@ -202,18 +197,7 @@ void ISR_vibr2() {
 //  FUNÇÕES AUXILIARES
 // ================================================================
 
-void setAndon(EstadoAndon estado) {
-  digitalWrite(PIN_ANDON_VERDE,    estado == ANDON_BOM     ? HIGH : LOW);
-  digitalWrite(PIN_ANDON_AMARELO,  estado == ANDON_DEFEITO ? HIGH : LOW);
-  digitalWrite(PIN_ANDON_VERMELHO, estado == ANDON_GRAVE   ? HIGH : LOW);
-}
-
-void piscarAndon(EstadoAndon estado, int vezes, int ms) {
-  for (int i = 0; i < vezes; i++) {
-    setAndon(estado);    delay(ms);
-    setAndon(ANDON_BOM); delay(ms / 2);
-  }
-}
+// setAndon() e piscarAndon() agora estão em Andon.cpp (v6.1)
 
 // ----------------------------------------------------------------
 //  MELHORIA 2+1 — Contagem de erros unificada
@@ -625,12 +609,10 @@ void setup() {
   wdt_disable();
 
   Serial.begin(9600);
-  Serial.println(F("=== BANCADA PREDITIVA v6.0 ==="));
+  Serial.println(F("=== BANCADA PREDITIVA v6.1 ==="));
 
   // Saídas
-  pinMode(PIN_ANDON_VERDE,    OUTPUT);
-  pinMode(PIN_ANDON_AMARELO,  OUTPUT);
-  pinMode(PIN_ANDON_VERMELHO, OUTPUT);
+  andonInit();              // v6.1 — configuração dos pinos movida para Andon.cpp
   setAndon(ANDON_GRAVE);
 
   // Entradas
