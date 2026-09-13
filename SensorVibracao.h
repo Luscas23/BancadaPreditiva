@@ -3,9 +3,6 @@
 
 #include <Arduino.h>
 
-// ----------------------------------------------------------------
-//  VIBRAÇÃO — 2x SW-420 (faixa 1 = defeito, faixa 2 = grave)
-// ----------------------------------------------------------------
 #define PIN_SW420_1        2     // Vibração faixa 1  (INT0 — defeito)
 #define PIN_SW420_2        3     // Vibração faixa 2  (INT1 — grave)
 #define DEBOUNCE_MS        50
@@ -37,5 +34,17 @@ extern int sw420_2_repouso;
 // CHANGE causava duplo disparo por vibração). Chamar uma vez no
 // setup().
 void vibracaoInit();
+
+// Correção — verificação de presença/sanidade da Fase 1 (antes era
+// chamada em BancadaPreditiva.ino mas nunca existia, o que impedia a
+// compilação). Confirma que o nível de repouso detectado em
+// vibracaoInit() (sw420_1_repouso/sw420_2_repouso) está ESTÁVEL,
+// lendo o pino várias vezes seguidas: um pino sem sensor conectado
+// (flutuando) tende a variar entre leituras por ruído, enquanto um
+// sensor real mantém o mesmo nível em repouso. Cada faixa é reportada
+// separadamente via parâmetro de saída, no mesmo padrão de
+// contarErros() (LogicaAvaliacao.h). Chamar durante a Fase 1, depois
+// de vibracaoInit() já ter rodado (ordem já garantida no setup()).
+void verificarVibracao(bool &ok1, bool &ok2);
 
 #endif

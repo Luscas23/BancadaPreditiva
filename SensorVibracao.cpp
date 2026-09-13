@@ -51,3 +51,33 @@ void vibracaoInit() {
   attachInterrupt(digitalPinToInterrupt(PIN_SW420_1), ISR_vibr1, modoDisparo1);
   attachInterrupt(digitalPinToInterrupt(PIN_SW420_2), ISR_vibr2, modoDisparo2);
 }
+
+// Correção — antes esta função era chamada em verificarPerifericos()
+// (BancadaPreditiva.ino) mas não existia em lugar nenhum do projeto,
+// o que impedia a compilação; okSW420_1/okSW420_2 eram apenas
+// fixados em 'true', sem checar o sensor de fato.
+//
+// Teste adotado: lê o pino várias vezes seguidas, com um pequeno
+// intervalo entre leituras, e confirma que o nível lido continua
+// igual ao repouso já detectado por vibracaoInit(). Um pino com
+// sensor de verdade conectado mantém o nível de repouso estável;
+// um pino sem sensor (flutuando, sem pull-up/down) tende a variar
+// entre leituras por captar ruído do ambiente. Não é uma prova
+// definitiva de presença do sensor (um pino preso externamente a um
+// nível fixo também passaria), mas já detecta o caso mais comum de
+// falha: sensor ausente ou desconectado.
+#define VIBR_AMOSTRAS_VERIFICACAO   10
+#define VIBR_INTERVALO_VERIFICACAO_US 200
+
+static bool nivelRepousoEstavel(uint8_t pino, int nivelEsperado) {
+  for (int i = 0; i < VIBR_AMOSTRAS_VERIFICACAO; i++) {
+    if (digitalRead(pino) != nivelEsperado) return false;
+    delayMicroseconds(VIBR_INTERVALO_VERIFICACAO_US);
+  }
+  return true;
+}
+
+void verificarVibracao(bool &ok1, bool &ok2) {
+  ok1 = nivelRepousoEstavel(PIN_SW420_1, sw420_1_repouso);
+  ok2 = nivelRepousoEstavel(PIN_SW420_2, sw420_2_repouso);
+}

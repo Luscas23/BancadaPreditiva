@@ -1,31 +1,6 @@
-// ================================================================
-//   BANCADA DE MANUTENÇÃO PREDITIVA DE MOTORES ELÉTRICOS
-//   Microcontrolador : Arduino Mega 2560
-//   Display          : LCD 20x4 I2C
-//   Sensores         : PT100+MAX31865 | ACS712-5A | KY-003 | 2x SW-420
-//   Andon            : Torre de sinalização (Verde / Amarelo / Vermelho)
-//   Autor            : Lucas Altruda Salce
-//   TCC              : Engenharia Mecatrônica
-//   Versão           : 6.0 (em refatoração modular — Passo 9/10 concluído)
-//   Alimentação      : Power Bank 5V/2A 5.000mAh via USB (sem PC)
-//
-//   Histórico completo de melhorias (v4/v5/v6) e da refatoração
-//   modular está em CHANGELOG.md — aqui fica só o essencial.
-// ================================================================
 
-// ----------------------------------------------------------------
-//  BIBLIOTECAS
-//  Passo 9 — Wire.h, LiquidCrystal_I2C.h, Adafruit_MAX31865.h e SD.h
-//  saíram daqui: nada neste arquivo as usa diretamente mais, cada
-//  uma já mora dentro do módulo que realmente precisa dela
-//  (Display, SensorPT100, LoggerSD). avr/wdt.h continua, porque o
-//  .ino chama wdt_disable()/wdt_enable()/wdt_reset() diretamente.
-// ----------------------------------------------------------------
 #include <avr/wdt.h>             // Watchdog Timer
 
-// ----------------------------------------------------------------
-//  MÓDULOS DO PROJETO
-// ----------------------------------------------------------------
 #include "Andon.h"
 #include "SensorCorrente.h"
 #include "SensorPT100.h"
@@ -36,11 +11,6 @@
 #include "LoggerSD.h"
 #include "Destino.h"       // DESTINO_SERIAL, usado no log Serial
 
-// ----------------------------------------------------------------
-//  SETPOINTS E TOLERÂNCIAS (configuração de negócio)
-//  Ainda globais aqui — candidatos a um futuro Config.h com perfis
-//  de motor (127V/220V), mas isso fica fora do escopo do Passo 9.
-// ----------------------------------------------------------------
 float setpointTemp    = 60.0;
 float toleranciaTemp  = 20.0;
 #define TEMP_GRAVE     100.0
@@ -64,9 +34,6 @@ LimitesAvaliacao limites = {
   setpointRPM, toleranciaRPM, RPM_GRAVE_MIN, RPM_GRAVE_MAX
 };
 
-// ----------------------------------------------------------------
-//  VARIÁVEIS DE LEITURA
-// ----------------------------------------------------------------
 float temperatura  = 0.0;
 float corrente     = 0.0;
 // erroSensor mora em SensorPT100.cpp (extern via SensorPT100.h)
@@ -82,18 +49,10 @@ bool okSW420_2  = false;
 bool okAndon    = false;
 bool okSD       = false;   // informativo; falha aqui NÃO bloqueia o funcionamento da bancada
 
-// ----------------------------------------------------------------
-//  WATCHDOG: reinicia o Arduino se travar por >8s
-// ----------------------------------------------------------------
 void iniciarWatchdog() {
   wdt_enable(WDTO_8S);
 }
 
-// ================================================================
-//  FASE 1 — VERIFICAÇÃO DE PERIFÉRICOS
-//  Passo 9 — só orquestra: cada tela virou uma chamada a Display,
-//  cada verificação de hardware continua chamando o módulo do sensor.
-// ================================================================
 void verificarPerifericos() {
   displayFase1Inicio();
   delay(1000);
@@ -120,13 +79,13 @@ void verificarPerifericos() {
   displayFase1StatusHall(okHall);
   delay(500);
 
-  // SW-420: detecta estado de repouso do sensor
-  verificarVibracao();
-  okSW420_1 = true;  // Sensor presente e lido com sucesso
-  okSW420_2 = true;
-  displayFase1StatusVibr1();
+  // SW-420: verifica cada sensor de verdade (Correção — antes
+  // chamava uma função que não existia no projeto e as duas flags
+  // eram fixadas em 'true' incondicionalmente; ver SensorVibracao.h)
+  verificarVibracao(okSW420_1, okSW420_2);
+  displayFase1StatusVibr1(okSW420_1);
   delay(500);
-  displayFase1StatusVibr2();
+  displayFase1StatusVibr2(okSW420_2);
   delay(500);
 
   // Andon
@@ -149,15 +108,12 @@ void verificarPerifericos() {
   bool tudo_ok = okDisplay && okPT100 && okACS712 &&
                  okHall && okSW420_1 && okSW420_2 && okAndon;
 
-  displayFase1Resultado(tudo_ok, okPT100, okACS712, okHall);
+  displayFase1Resultado(tudo_ok, okPT100, okACS712, okHall, okSW420_1, okSW420_2);
 
   if (tudo_ok) setAndon(ANDON_BOM);
   else { piscarAndon(ANDON_DEFEITO, 3, 300); setAndon(ANDON_DEFEITO); }
 }
 
-// ================================================================
-//  FASE 2 — COUNTDOWN 45 SEGUNDOS
-// ================================================================
 void countdown45s() {
   unsigned long inicio  = millis();
   unsigned long duracao = 45000UL;
@@ -176,9 +132,6 @@ void countdown45s() {
   displayLimpar();
 }
 
-// ================================================================
-//  SETUP
-// ================================================================
 void setup() {
   // Desabilita watchdog residual de reset anterior
   wdt_disable();
@@ -213,9 +166,6 @@ void setup() {
   else              Serial.println(F("Cartao SD indisponivel - gravacao desabilitada"));
 }
 
-// ================================================================
-//  LOOP PRINCIPAL
-// ================================================================
 void loop() {
 
   wdt_reset();  // alimenta watchdog a cada ciclo
