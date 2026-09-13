@@ -2,6 +2,32 @@
 
 Formato: data, versão/etapa, o que mudou, por quê.
 
+## [Modularização] Passo 5 — SensorVibracao extraído
+- Criados `SensorVibracao.h` / `SensorVibracao.cpp`.
+- Migrados: `PIN_SW420_1`, `PIN_SW420_2`, `DEBOUNCE_MS`, as flags
+  `volatile bool vibr1/vibr2`, os timestamps `ultimaVibr1Ms/2Ms`, os
+  estados de repouso `sw420_1_repouso/2_repouso`, e as ISRs
+  `ISR_vibr1()`/`ISR_vibr2()` (agora `static`, privadas ao módulo).
+- Nova função `vibracaoInit()` concentra `pinMode()` dos dois pinos,
+  a detecção do repouso (melhoria 3) e os dois `attachInterrupt(...,
+  RISING)` — antes espalhados em três pontos diferentes do `setup()`.
+- `verificarPerifericos()` não repete mais a leitura de repouso (já
+  feita em `vibracaoInit()` antes da Fase 1 começar); mantém os
+  mesmos indicadores `okSW420_1`/`okSW420_2` e as mensagens no
+  display. Comportamento equivalente: o nível dos pinos não muda
+  entre `vibracaoInit()` e a Fase 1.
+- `ultimoDebounce1/2` viraram `static` no `.cpp` — são detalhe interno
+  do debounce, nenhum outro módulo precisa vê-los.
+- Primeiro módulo com interrupções: o contrato de leitura do `loop()`
+  principal (`noInterrupts()`/`interrupts()` para tirar um snapshot
+  atômico das flags antes de avaliar erros, e zerá-las só depois de
+  exibidas no display) foi preservado sem alteração — continua no
+  `.ino`, já que ainda é lógica de orquestração, não do sensor em si.
+- Checagem estática: nenhuma referência a `PIN_SW420_1/2`,
+  `DEBOUNCE_MS`, `ultimoDebounce1/2` ou às ISRs de vibração restou
+  fora do módulo; `vibr1`/`vibr2`/timestamps continuam acessados no
+  `.ino` exclusivamente via `extern`.
+
 ## [Modularização] Passo 4 — SensorPT100 extraído
 - Criados `SensorPT100.h` / `SensorPT100.cpp`.
 - Migrados: `PIN_MAX31865_CS`, `PT100_RNOM`, `PT100_RREF`, o objeto

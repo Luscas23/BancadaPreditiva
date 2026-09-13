@@ -26,7 +26,7 @@ mesmo tempo. Módulos extraídos até agora:
       verificação de presença na Fase 1).
 - [x] **Passo 4** — `SensorPT100.h/.cpp` (leitura + média móvel + fault +
       verificação de presença na Fase 1).
-- [ ] **Passo 5** — `SensorVibracao.h/.cpp` (ISRs SW-420 + debounce +
+- [x] **Passo 5** — `SensorVibracao.h/.cpp` (ISRs SW-420 + debounce +
       tempo desde última vibração).
 - [ ] **Passo 6** — `SensorRPM.h/.cpp` (ISR Hall + cálculo de RPM +
       `EstadoMotor`).
@@ -51,6 +51,7 @@ BancadaPreditiva/
 ├── Andon.h / Andon.cpp
 ├── SensorCorrente.h / SensorCorrente.cpp
 ├── SensorPT100.h / SensorPT100.cpp
+├── SensorVibracao.h / SensorVibracao.cpp
 ├── README.md
 └── CHANGELOG.md
 ```

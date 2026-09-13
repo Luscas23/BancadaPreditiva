@@ -24,13 +24,13 @@
 #include "Andon.h"                // Módulo extraído — passo 2
 #include "SensorCorrente.h"       // Módulo extraído — passo 3
 #include "SensorPT100.h"          // Módulo extraído — passo 4
+#include "SensorVibracao.h"       // Módulo extraído — passo 5
 
 // ----------------------------------------------------------------
 //  PINOS — Arduino Mega 2560
 // ----------------------------------------------------------------
-#define PIN_SW420_1        2     // Vibração faixa 1  (INT0 — defeito)
-#define PIN_SW420_2        3     // Vibração faixa 2  (INT1 — grave)
 #define PIN_HALL           18    // RPM Hall KY-003   (INT5)
+// PIN_SW420_1 / PIN_SW420_2 agora vivem em SensorVibracao.h
 // PIN_ACS712 agora vive em SensorCorrente.h
 // PIN_MAX31865_CS agora vive em SensorPT100.h
 
@@ -69,17 +69,9 @@ EstadoMotor estadoMotor     = MOTOR_PARADO;
 bool        motorJaGirou    = false;
 
 // ----------------------------------------------------------------
-//  VIBRAÇÃO
+//  VIBRAÇÃO — flags, debounce e timestamps agora em
+//  SensorVibracao.h/.cpp
 // ----------------------------------------------------------------
-volatile bool vibr1         = false;
-volatile bool vibr2         = false;
-#define DEBOUNCE_MS          50
-unsigned long ultimoDebounce1 = 0;
-unsigned long ultimoDebounce2 = 0;
-
-// Melhoria 7 — Tempo desde última vibração
-unsigned long ultimaVibr1Ms = 0;
-unsigned long ultimaVibr2Ms = 0;
 
 // ----------------------------------------------------------------
 //  SETPOINTS E TOLERÂNCIAS
@@ -139,10 +131,7 @@ bool okSW420_2  = false;
 bool okAndon    = false;
 bool okSD       = false;   // v6 — informativo; falha aqui NÃO bloqueia o funcionamento da bancada
 
-// Estado lógico do SW-420 em repouso (detectado na verificação)
-// Melhoria 3 — adaptativo conforme modelo do sensor
-int sw420_1_repouso = LOW;
-int sw420_2_repouso = LOW;
+// sw420_1_repouso / sw420_2_repouso agora vivem em SensorVibracao.h/.cpp
 
 // ================================================================
 //  INTERRUPÇÕES
@@ -151,23 +140,7 @@ void ISR_hall() {
   pulsos++;
 }
 
-void ISR_vibr1() {
-  unsigned long agora = millis();
-  if (agora - ultimoDebounce1 > DEBOUNCE_MS) {
-    vibr1           = true;
-    ultimaVibr1Ms   = agora;   // Melhoria 7
-    ultimoDebounce1 = agora;
-  }
-}
-
-void ISR_vibr2() {
-  unsigned long agora = millis();
-  if (agora - ultimoDebounce2 > DEBOUNCE_MS) {
-    vibr2           = true;
-    ultimaVibr2Ms   = agora;   // Melhoria 7
-    ultimoDebounce2 = agora;
-  }
-}
+// ISR_vibr1() e ISR_vibr2() agora vivem em SensorVibracao.cpp
 
 // ================================================================
 //  FUNÇÕES AUXILIARES
@@ -359,9 +332,8 @@ void verificarPerifericos() {
   lcd.print(okHall ? F("OK  ") : F("ERRO"));
   delay(500);
 
-  // Melhoria 3 — SW-420: detecta estado de repouso do sensor
-  sw420_1_repouso = digitalRead(PIN_SW420_1);
-  sw420_2_repouso = digitalRead(PIN_SW420_2);
+  // Melhoria 3 — repouso do SW-420 já detectado em vibracaoInit() (setup);
+  // aqui só reporta o status no display
   okSW420_1 = true;  // Sensor presente e lido com sucesso
   okSW420_2 = true;
   lcd.setCursor(0, 2); lcd.print(F("Vibr. SW1.......OK  "));
@@ -545,9 +517,8 @@ void setup() {
   setAndon(ANDON_GRAVE);
 
   // Entradas
-  pinMode(PIN_SW420_1, INPUT);
-  pinMode(PIN_SW420_2, INPUT);
   pinMode(PIN_HALL,    INPUT_PULLUP);
+  // pinMode dos SW-420 agora dentro de vibracaoInit()
 
   // LCD
   lcd.init();
@@ -563,8 +534,7 @@ void setup() {
 
   // Interrupções
   attachInterrupt(digitalPinToInterrupt(PIN_HALL),    ISR_hall,  RISING);
-  attachInterrupt(digitalPinToInterrupt(PIN_SW420_1), ISR_vibr1, RISING); // Corrigido: CHANGE causava duplo disparo por vibração
-  attachInterrupt(digitalPinToInterrupt(PIN_SW420_2), ISR_vibr2, RISING); // Corrigido: CHANGE causava duplo disparo por vibração
+  vibracaoInit();       // Módulo SensorVibracao — passo 5 (pinMode + repouso + attachInterrupt)
   ultimoCalculoRPM = millis();
 
   // Fases de inicialização
