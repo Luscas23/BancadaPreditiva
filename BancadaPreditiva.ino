@@ -163,7 +163,9 @@ void countdown45s() {
   unsigned long duracao = 45000UL;
 
   while (millis() - inicio < duracao) {
-    wdt_reset();  // alimenta watchdog durante countdown
+    wdt_reset();  // no-op hoje: watchdog só é ativado em iniciarWatchdog(),
+                  // chamada depois do countdown (ver setup()). Mantido aqui
+                  // de propósito, caso a ordem de ativação mude no futuro.
     unsigned long restante = (duracao - (millis() - inicio)) / 1000;
     displayFase2Countdown(restante);
     delay(500);
@@ -239,6 +241,7 @@ void loop() {
   leitura.motorJaGirou = motorJaGirou;
   leitura.vibr1        = vibr1_snapshot;
   leitura.vibr2        = vibr2_snapshot;
+  leitura.erroSensorTemp = erroSensor;
 
   int erros = 0;
   EstadoAndon estado = avaliarEstado(leitura, limites, erros);

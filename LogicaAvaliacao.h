@@ -26,6 +26,9 @@ struct LeituraAtual {
   bool  motorJaGirou;
   bool  vibr1;
   bool  vibr2;
+  bool  erroSensorTemp;  // true = MAX31865 acusou fault neste ciclo;
+                          // 'temperatura' vem como -999.0 e não deve
+                          // ser comparada contra as bandas normais
 };
 
 // Setpoints e tolerâncias usados para avaliar as leituras. Reúne numa

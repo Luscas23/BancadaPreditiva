@@ -19,14 +19,26 @@ int contarErros(const LeituraAtual& leitura, const LimitesAvaliacao& limites, bo
   int ruim = 0, perigoso = 0;
 
   // --- Temperatura (sem limite grave inferior — igual ao v6.0) ---
-  float minTemp = limites.setpointTemp - limites.toleranciaTemp;
-  float maxTemp = limites.setpointTemp + limites.toleranciaTemp;
-  if (leitura.temperatura >= minTemp && leitura.temperatura <= maxTemp) {
-    // ideal — nada a fazer
-  } else if (leitura.temperatura <= limites.tempGrave) {
+  // Falha do sensor é checada explicitamente ANTES de comparar contra
+  // as bandas: 'temperatura' chega como -999.0 nesse caso, e depender
+  // dela cair fora de [minTemp, maxTemp] por coincidência de valor é
+  // frágil (ex.: quebra se toleranciaTemp for alargada no futuro).
+  // Severidade mantida como "ruim" (DEFEITO) para não mudar o
+  // comportamento atual — reavaliar se merece ir direto para
+  // "perigoso" (GRAVE), já que representa perda total da leitura de
+  // proteção térmica do motor.
+  if (leitura.erroSensorTemp) {
     ruim++;
   } else {
-    perigoso++;
+    float minTemp = limites.setpointTemp - limites.toleranciaTemp;
+    float maxTemp = limites.setpointTemp + limites.toleranciaTemp;
+    if (leitura.temperatura >= minTemp && leitura.temperatura <= maxTemp) {
+      // ideal — nada a fazer
+    } else if (leitura.temperatura <= limites.tempGrave) {
+      ruim++;
+    } else {
+      perigoso++;
+    }
   }
 
   // --- Corrente (sem limite grave inferior — igual ao v6.0) ---
