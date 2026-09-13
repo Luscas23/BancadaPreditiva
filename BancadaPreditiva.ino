@@ -6,7 +6,7 @@
 //   Andon            : Torre de sinalização (Verde / Amarelo / Vermelho)
 //   Autor            : Lucas Altruda Salce
 //   TCC              : Engenharia Mecatrônica
-//   Versão           : 6.0 (em refatoração modular — Passo 7/10 concluído)
+//   Versão           : 6.0 (em refatoração modular — Passo 8/10 concluído)
 //   Alimentação      : Power Bank 5V/2A 5.000mAh via USB (sem PC)
 //
 //   Histórico completo de melhorias (v4/v5/v6) e da refatoração
@@ -31,11 +31,8 @@
 #include "SensorVibracao.h"
 #include "SensorRPM.h"
 #include "LogicaAvaliacao.h"
-
-// ----------------------------------------------------------------
-//  PINOS que ainda não migraram para nenhum módulo
-// ----------------------------------------------------------------
-#define PIN_SD_CS          4     // Cartão SD CS — mesmo barramento SPI do PT100
+#include "Display.h"
+#include "LoggerSD.h"
 
 // ----------------------------------------------------------------
 //  SETPOINTS E TOLERÂNCIAS (configuração de negócio)
@@ -78,25 +75,13 @@ typedef enum {
 EstadoSistema estadoAtual = ESTADO_INIT;
 
 // ----------------------------------------------------------------
-//  LCD 20x4 I2C
-// ----------------------------------------------------------------
-LiquidCrystal_I2C lcd(0x27, 20, 4);
-
-// ----------------------------------------------------------------
 //  VARIÁVEIS DE LEITURA
 // ----------------------------------------------------------------
 float temperatura  = 0.0;
 float corrente     = 0.0;
 // erroSensor agora mora em SensorPT100.cpp (extern via SensorPT100.h)
-
-// ----------------------------------------------------------------
-//  GRAVAÇÃO SD
-//  Ainda não extraída para um módulo próprio (candidato ao Passo 8,
-//  junto com o Display).
-// ----------------------------------------------------------------
-const char NOME_ARQUIVO_LOG[] = "LOG.CSV";
-bool sdDisponivel        = false;  // false = cartão ausente/falhou, bancada continua sem gravar
-unsigned long inicioLeituraMs = 0; // referência de tempo: zerada quando a Fase 3 começa
+// lcd agora mora em Display.cpp (extern via Display.h)
+// sdDisponivel agora mora em LoggerSD.cpp (extern via LoggerSD.h)
 
 bool okDisplay  = false;
 bool okPT100    = false;
@@ -106,57 +91,6 @@ bool okSW420_1  = false;
 bool okSW420_2  = false;
 bool okAndon    = false;
 bool okSD       = false;   // informativo; falha aqui NÃO bloqueia o funcionamento da bancada
-
-// ================================================================
-//  GRAVAÇÃO EM CARTÃO SD
-//  Tratada como recurso secundário: se o cartão falhar ou for
-//  removido, a bancada continua monitorando o motor normalmente.
-// ================================================================
-bool iniciarSD() {
-  pinMode(53, OUTPUT);  // Mantém o SS de hardware do Mega como saída
-
-  if (!SD.begin(PIN_SD_CS)) {
-    return false;
-  }
-
-  if (!SD.exists(NOME_ARQUIVO_LOG)) {
-    File arquivo = SD.open(NOME_ARQUIVO_LOG, FILE_WRITE);
-    if (!arquivo) return false;
-    arquivo.println(F("tempo_s,temp_C,corrente_A,rpm,erros,estado_motor,estado_andon"));
-    arquivo.close();
-  }
-  return true;
-}
-
-void gravarLeituraSD(EstadoAndon estado, int erros) {
-  if (!sdDisponivel) return;  // recurso desabilitado — não tenta nem trava o ciclo
-
-  File arquivo = SD.open(NOME_ARQUIVO_LOG, FILE_WRITE);
-  if (!arquivo) {
-    sdDisponivel = false;  // cartão removido/corrompido — desliga gravação, bancada continua
-    return;
-  }
-
-  arquivo.print((millis() - inicioLeituraMs) / 1000.0, 1); arquivo.print(F(","));
-  arquivo.print(temperatura, 2);                            arquivo.print(F(","));
-  arquivo.print(corrente, 3);                               arquivo.print(F(","));
-  arquivo.print((int)rpmAtual);                             arquivo.print(F(","));
-  arquivo.print(erros);                                     arquivo.print(F(","));
-  switch (estadoMotor) {
-    case MOTOR_PARADO:     arquivo.print(F("PARADO"));     break;
-    case MOTOR_ACELERANDO: arquivo.print(F("ACELERANDO")); break;
-    case MOTOR_OPERANDO:   arquivo.print(F("OPERANDO"));   break;
-    case MOTOR_PAROU:      arquivo.print(F("PAROU"));      break;
-  }
-  arquivo.print(F(","));
-  switch (estado) {
-    case ANDON_BOM:     arquivo.println(F("BOM"));     break;
-    case ANDON_DEFEITO: arquivo.println(F("DEFEITO")); break;
-    case ANDON_GRAVE:   arquivo.println(F("GRAVE"));   break;
-  }
-
-  arquivo.close();  // fecha = grava (flush) no cartão imediatamente
-}
 
 // ----------------------------------------------------------------
 //  WATCHDOG: reinicia o Arduino se travar por >8s
@@ -222,7 +156,7 @@ void verificarPerifericos() {
   delay(500);
 
   // Cartão SD (informativo: falha aqui não impede o resumo final)
-  okSD = iniciarSD();
+  okSD = loggerSDInit();
   sdDisponivel = okSD;
   lcd.setCursor(0, 2); lcd.print(F("Cartao SD........"));
   lcd.print(okSD ? F("OK  ") : F("ERRO"));
@@ -279,98 +213,6 @@ void countdown45s() {
 }
 
 // ================================================================
-//  FASE 3 — DISPLAY 20x4
-//
-//  Linha 0: BANCADA PREDITIVA [BOM/DEF/GRV]
-//  Linha 1: T: XX.XC   I: X.XXA
-//  Linha 2: RPM:XXXX  E:X [estado motor]
-//  Linha 3: VIB1:XXs  VIB2:XXs
-// ================================================================
-void atualizarDisplay(EstadoAndon estado, int erros) {
-
-  // Linha 0 — título + estado
-  lcd.setCursor(0, 0);
-  lcd.print(F("BANCADA PREDITIVA   "));
-  lcd.setCursor(17, 0);
-  switch (estado) {
-    case ANDON_BOM:    lcd.print(F("BOM")); break;
-    case ANDON_DEFEITO:lcd.print(F("DEF")); break;
-    case ANDON_GRAVE:  lcd.print(F("GRV")); break;
-  }
-
-  // Linha 1 — Temperatura e Corrente
-  lcd.setCursor(0, 1);
-  lcd.print(F("T:"));
-  if (erroSensor) {
-    lcd.print(F("ERRO  "));
-  } else {
-    if (temperatura >= 0.0 && temperatura < 100.0) lcd.print(F(" "));
-    lcd.print(temperatura, 1);
-    lcd.print(F("C "));
-  }
-  lcd.setCursor(10, 1);
-  lcd.print(F("I:"));
-  lcd.print(corrente, 2);
-  lcd.print(F("A  "));
-
-  // Linha 2 — RPM + erros + estado motor
-  lcd.setCursor(0, 2);
-  lcd.print(F("RPM:"));
-  lcd.print((int)rpmAtual);
-  lcd.print(F("  "));
-  lcd.setCursor(10, 2);
-  lcd.print(F("E:"));
-  lcd.print(erros);
-  lcd.print(F(" "));
-  switch (estadoMotor) {
-    case MOTOR_PARADO:     lcd.print(F("PAR")); break;
-    case MOTOR_ACELERANDO: lcd.print(F("ACE")); break;
-    case MOTOR_OPERANDO:   lcd.print(F("OPE")); break;
-    case MOTOR_PAROU:      lcd.print(F("!!!"));  break;
-  }
-
-  // Linha 3 — tempo desde última vibração
-  // (flags lidas ANTES de serem zeradas)
-  unsigned long agora = millis();
-  lcd.setCursor(0, 3);
-
-  if (vibr1 || vibr2) {
-    // Vibração ativa neste ciclo
-    lcd.print(vibr2 ? F("VIB:GRAVE           ")
-                    : F("VIB:DEFEITO         "));
-  } else {
-    // Mostra há quantos segundos foi a última vibração
-    lcd.print(F("V1:"));
-    if (ultimaVibr1Ms == 0) {
-      lcd.print(F("---s "));
-    } else {
-      unsigned long s1 = (agora - ultimaVibr1Ms) / 1000;
-      if (s1 > 999) s1 = 999;
-      if (s1 < 10)  lcd.print(F("  "));
-      else if (s1 < 100) lcd.print(F(" "));
-      lcd.print(s1);
-      lcd.print(F("s "));
-    }
-    lcd.setCursor(10, 3);
-    lcd.print(F("V2:"));
-    if (ultimaVibr2Ms == 0) {
-      lcd.print(F("---s "));
-    } else {
-      unsigned long s2 = (agora - ultimaVibr2Ms) / 1000;
-      if (s2 > 999) s2 = 999;
-      if (s2 < 10)  lcd.print(F("  "));
-      else if (s2 < 100) lcd.print(F(" "));
-      lcd.print(s2);
-      lcd.print(F("s "));
-    }
-  }
-
-  // Limpa flags APÓS avaliação e exibição
-  vibr1 = false;
-  vibr2 = false;
-}
-
-// ================================================================
 //  SETUP
 // ================================================================
 void setup() {
@@ -388,8 +230,7 @@ void setup() {
   rpmInit();
 
   // LCD
-  lcd.init();
-  lcd.backlight();
+  displayInit();
   lcd.setCursor(0, 0); lcd.print(F("  BANCADA PREDITIVA "));
   lcd.setCursor(0, 1); lcd.print(F("  MOTORES ELETRICOS "));
   lcd.setCursor(0, 2); lcd.print(F("   TCC - ENGENHARIA "));
@@ -407,7 +248,7 @@ void setup() {
   countdown45s();
 
   estadoAtual = ESTADO_LENDO;
-  inicioLeituraMs = millis();  // referência t=0 do CSV: começo da Fase 3, não do boot
+  loggerSDIniciarTempo();  // referência t=0 do CSV: começo da Fase 3, não do boot
 
   // Ativa watchdog apenas após inicialização completa
   iniciarWatchdog();
@@ -451,7 +292,7 @@ void loop() {
   setAndon(estado);
 
   // Atualiza display (flags zeradas dentro, após exibição)
-  atualizarDisplay(estado, erros);
+  atualizarDisplay(temperatura, corrente, estado, erros);
 
   // Log Serial
   Serial.print(temperatura, 2); Serial.print(F("\t"));
@@ -471,7 +312,7 @@ void loop() {
   }
 
   // Grava a mesma leitura no cartão SD (se disponível)
-  gravarLeituraSD(estado, erros);
+  gravarLeituraSD(temperatura, corrente, estado, erros);
 
   delay(500);
 }

@@ -1,50 +1,43 @@
-# Bancada Preditiva — Refatoração Modular
+# Bancada de Manutenção Preditiva de Motores Elétricos
 
-Projeto de TCC (Engenharia Mecatrônica): bancada de manutenção preditiva
-de motores elétricos, em refatoração de um único `.ino` monolítico para
-uma estrutura modular em abas do Arduino IDE.
+TCC — Engenharia Mecatrônica | Lucas Altruda Salce
 
-## Estrutura atual
+Arduino Mega 2560 + LCD 20x4 I2C + PT100/MAX31865 + ACS712-5A +
+sensor Hall KY-003 + 2x SW-420 + torre Andon + cartão SD.
+
+## Status da refatoração modular
+
+Reestruturando o projeto de um único `.ino` monolítico para módulos
+por responsabilidade, sem alterar o comportamento da bancada.
+Progresso: **Passo 8/10 concluído**. Veja `CHANGELOG.md` para o
+histórico completo de cada passo.
+
+## Estrutura atual (abas do Arduino IDE)
 
 ```
 BancadaPreditiva/
-├── BancadaPreditiva.ino    // orquestração: setup(), loop(), Fases 1-3, SD
-├── Andon.h / .cpp           // torre de sinalização (Passo 2)
-├── SensorCorrente.h / .cpp  // ACS712 (Passo 3)
-├── SensorPT100.h / .cpp     // PT100 + MAX31865 + média móvel (Passo 4)
-├── SensorVibracao.h / .cpp  // 2x SW-420 (Passo 5)
-├── SensorRPM.h / .cpp       // Hall + EstadoMotor (Passo 6)
-├── LogicaAvaliacao.h / .cpp // contarErros()/avaliarEstado(), sem hardware (Passo 7)
+├── BancadaPreditiva.ino   — orquestra setup()/loop() e as fases 1-3
+├── Andon.h / .cpp         — torre de sinalização
+├── SensorCorrente.h / .cpp — leitura RMS do ACS712
+├── SensorPT100.h / .cpp   — leitura + média móvel + fault do PT100
+├── SensorVibracao.h / .cpp — ISRs do SW-420 + debounce + timestamps
+├── SensorRPM.h / .cpp     — ISR Hall + cálculo de RPM + EstadoMotor
+├── LogicaAvaliacao.h / .cpp — contarErros()/avaliarEstado(), puro C++
+├── Display.h / .cpp       — objeto lcd + atualizarDisplay()
+├── LoggerSD.h / .cpp      — gravação em cartão SD (LOG.CSV)
 ├── CHANGELOG.md
 └── README.md
 ```
 
-## Progresso da modularização
-
-- [x] Passo 1 — Baseline congelada em Git
-- [x] Passo 2 — Módulo Andon
-- [x] Passo 3 — Módulo SensorCorrente
-- [x] Passo 4 — Módulo SensorPT100
-- [x] Passo 5 — Módulo SensorVibracao
-- [x] Passo 6 — Módulo SensorRPM
-- [x] Passo 7 — Módulo LogicaAvaliacao (lógica pura, testável)
-- [ ] Passo 8 — Extrair Display e LoggerSD (SD ainda está no `.ino`)
-- [ ] Passo 9 — Enxugar `main.ino` (o que sobrar deve ser só orquestração)
-- [ ] Passo 10 — Implementar as novas mudanças do projeto
-
 ## Como validar cada passo
 
-1. Abra `BancadaPreditiva.ino` no Arduino IDE — os `.h`/`.cpp` aparecem
-   como abas ao lado do sketch principal.
+1. Abra `BancadaPreditiva.ino` no Arduino IDE — as abas dos módulos
+   aparecem automaticamente ao lado do sketch principal.
 2. Compile (Verificar).
-3. Se possível, grave na bancada real e confirme que o comportamento é
-   idêntico ao da baseline v6.0.
-4. `git add -A && git commit -m "Passo 7: extrai módulo LogicaAvaliacao"`
+3. Grave na bancada real e confirme que o comportamento é idêntico
+   ao anterior (torre Andon, LCD, RPM, gravação no SD).
+4. `git add -A && git commit -m "Passo N: ..."`.
 
-## Por que LogicaAvaliacao importa para o TCC
+## Próximos passos
 
-É o único módulo que não depende de `<Arduino.h>`. Recebe tudo (leituras e
-limites) por parâmetro via `LeituraAtual`/`LimitesAvaliacao` e devolve o
-estado do Andon — puro cálculo. Isso permite, no futuro, escrever testes
-automatizados da regra de negócio sem precisar da bancada ligada, o que é
-um ponto forte de rigor de engenharia para o trabalho.
+Veja a seção "Próximos passos" no final do `CHANGELOG.md`.

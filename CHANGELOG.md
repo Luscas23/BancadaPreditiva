@@ -1,82 +1,89 @@
-# Changelog — Bancada Preditiva
+# CHANGELOG — Bancada Preditiva
 
-Histórico da refatoração modular. Formato livre, mais recente no topo.
+Histórico da refatoração modular do `BancadaPreditiva.ino` (v6.0),
+substituindo os comentários de versão (v4/v5/v6) que ficavam no
+cabeçalho do código.
 
-## [Não lançado] — Refatoração modular em andamento
+## Refatoração modular — Passo 8/10 (Display + LoggerSD)
+- Extraído `Display.h` / `Display.cpp`:
+  - Objeto `LiquidCrystal_I2C lcd` passa a morar aqui (`extern` para
+    quem ainda usa diretamente nas telas de boot: `verificarPerifericos()`,
+    `countdown45s()` e `setup()` — isso será resolvido no Passo 9).
+  - `displayInit()` concentra `lcd.init()` + `lcd.backlight()`.
+  - `atualizarDisplay()` migrada do `.ino`; assinatura ganhou dois
+    parâmetros (`temperatura`, `corrente`) porque essas variáveis ainda
+    não têm módulo próprio — mesmo padrão de "ajuste de assinatura"
+    usado em `calcularRPM()` no Passo 6.
+- Extraído `LoggerSD.h` / `LoggerSD.cpp`:
+  - `iniciarSD()` renomeada para `loggerSDInit()`.
+  - `inicioLeituraMs` agora é `static` dentro do módulo; setado via
+    nova função `loggerSDIniciarTempo()`, chamada no início da Fase 3.
+  - `gravarLeituraSD()` migrada, mesma assinatura + `temperatura`/`corrente`.
+  - `sdDisponivel` continua `extern bool` (mesmo padrão do `erroSensor`).
+- Nenhuma lógica alterada — checagem estática confirmou que `lcd`,
+  `sdDisponivel`, `erroSensor`, `vibr1`/`vibr2`, `rpmAtual`, `estadoMotor`
+  e `motorJaGirou` têm exatamente uma definição real cada, sem duplicidade.
 
-### Passo 7 — Extrai módulo LogicaAvaliacao
-- Novo: `LogicaAvaliacao.h` / `LogicaAvaliacao.cpp`, com `contarErros()` e
-  `avaliarEstado()` migrados do `.ino`.
-- Novo: struct `LeituraAtual` (temperatura, corrente, rpm, motorJaGirou,
-  vibr1, vibr2) — tudo que a lógica de decisão precisa saber sobre o motor
-  em um dado ciclo.
-- Novo: struct `LimitesAvaliacao` (setpoints/tolerâncias de temperatura,
-  corrente e RPM) — reúne numa struct só o que antes eram `#define`/globais
-  soltos, preparando terreno para trocar perfil de motor (127V/220V) sem
-  tocar na lógica de decisão.
-- `contarErros()`/`avaliarEstado()` não leem mais nenhuma variável global de
-  hardware — recebem tudo via `const LeituraAtual&` e `const LimitesAvaliacao&`.
-  Nenhuma regra de negócio mudou: mesma ordem de checagem, mesmos limiares,
-  mesmo retorno antecipado (4) em condição grave.
-- `LogicaAvaliacao.h`/`.cpp` não incluem `<Arduino.h>` — só `Andon.h` (que
-  também não inclui `<Arduino.h>`), para reaproveitar o enum `EstadoAndon`.
-  Esse é o primeiro módulo 100% livre de dependência de hardware: já está
-  pronto para testes nativos se o projeto migrar para PlatformIO.
-- `main.ino`: `loop()` agora monta um `LeituraAtual` a partir das leituras
-  do ciclo e chama `avaliarEstado(leitura, limites, erros)`. Os setpoints
-  continuam como globais no `.ino` por enquanto; são empacotados uma única
-  vez em `LimitesAvaliacao limites`.
+## Refatoração modular — Passo 7/10 (LogicaAvaliacao)
+- Extraído `LogicaAvaliacao.h` / `LogicaAvaliacao.cpp`.
+- `contarErros()` e `avaliarEstado()` passam a receber tudo por
+  parâmetro via `struct LeituraAtual` e `struct LimitesAvaliacao`,
+  em vez de ler variáveis globais diretamente.
+- Módulo não depende de `<Arduino.h>` — é puro C++, testável sem a
+  bancada montada.
 
-### Passo 6 — Extrai módulo SensorRPM
-- Novo: `SensorRPM.h` / `SensorRPM.cpp`: pino do Hall, `EstadoMotor`,
+## Refatoração modular — Passo 6/10 (SensorRPM)
+- Extraído `SensorRPM.h` / `SensorRPM.cpp`: pino Hall, `EstadoMotor`,
   `rpmAtual`/`estadoMotor`/`motorJaGirou`, a ISR (agora `static`) e
   `calcularRPM()`.
-- `rpmInit()` concentra `pinMode`, `attachInterrupt` e a inicialização da
-  referência de tempo.
-- `verificarHall()` encapsula a checagem da Fase 1.
+- `rpmInit()` concentra `pinMode`, `attachInterrupt` e a referência de
+  tempo inicial.
 - `calcularRPM()` passou a receber `setpointRPM`/`toleranciaRPM` por
-  parâmetro em vez de ler os globais diretamente.
+  parâmetro em vez de ler globais — prepara o terreno para o Passo 7.
 
-### Passo 5 — Extrai módulo SensorVibracao
-- Novo: `SensorVibracao.h` / `SensorVibracao.cpp`: pinos dos dois SW-420,
-  `vibr1`/`vibr2` (volatile), debounce, timestamps da última vibração
-  (`ultimaVibr1Ms`/`ultimaVibr2Ms`) e o estado de repouso detectado na
-  Fase 1.
-- `vibracaoInit()` concentra `pinMode` e os dois `attachInterrupt`.
-- `verificarVibracao()` encapsula a checagem da Fase 1.
-- As ISRs mantêm a mesma lógica de debounce; o `loop()` do `.ino` continua
-  responsável por capturar o snapshot atômico (`noInterrupts()`/
-  `interrupts()`) antes de qualquer avaliação.
+## Refatoração modular — Passo 5/10 (SensorVibracao)
+- Extraído `SensorVibracao.h` / `SensorVibracao.cpp`: as duas ISRs do
+  SW-420, debounce e timestamps da última vibração.
 
-### Passo 4 — Extrai módulo SensorPT100
-- Novo: `SensorPT100.h` / `SensorPT100.cpp`: pino, constantes (`PT100_RNOM`,
-  `PT100_RREF`), o objeto `pt100`, o buffer da média móvel e
-  `pt100Init()`, `lerTemperatura()`, `verificarPT100()`.
-- `erroSensor` virou `extern bool`: continua acessível pelo `.ino` (o
-  display ainda o usa) sem ficar duplicado.
-- Buffer da média móvel e índice agora são `static` dentro do `.cpp`.
+## Refatoração modular — Passo 4/10 (SensorPT100)
+- Extraído `SensorPT100.h` / `SensorPT100.cpp`: objeto
+  `Adafruit_MAX31865`, buffer da média móvel (agora `static`) e
+  `pt100Init()`/`lerTemperatura()`/`verificarPT100()`.
+- `erroSensor` virou `extern bool`.
 
-### Passo 3 — Extrai módulo SensorCorrente
-- Novo: `SensorCorrente.h` / `SensorCorrente.cpp`: pino do ACS712,
-  constantes e `lerCorrente()`/`verificarACS712()`.
-- `verificarPerifericos()` agora chama `okACS712 = verificarACS712()` em
-  vez de fazer o `analogRead`/threshold manualmente.
+## Refatoração modular — Passo 3/10 (SensorCorrente)
+- Extraído `SensorCorrente.h` / `SensorCorrente.cpp`: `lerCorrente()`
+  com RMS e `verificarACS712()`.
 
-### Passo 2 — Extrai módulo Andon
-- Novo: `Andon.h` / `Andon.cpp`: pinos, `enum EstadoAndon`, `andonInit()`,
-  `setAndon()`, `piscarAndon()`.
-- `setup()` passou a chamar `andonInit()` em vez de 3 `pinMode()` soltos.
+## Refatoração modular — Passo 2/10 (Andon)
+- Extraído `Andon.h` / `Andon.cpp`: pinos, `EstadoAndon`,
+  `andonInit()`, `setAndon()`, `piscarAndon()`.
 
-### Passo 1 — Baseline congelada em Git
-- Código v6.0 copiado sem alteração para `BancadaPreditiva/`.
-- Repositório Git iniciado (commit `baseline`, depois `.gitignore`).
-- `README.md` e este `CHANGELOG.md` criados.
+## Passo 1/10 — Baseline
+- v6.0 congelada como ponto de partida antes da refatoração modular.
 
-## v6.0 — Baseline monolítica (antes da refatoração)
-- Watchdog | Média móvel PT100 | Detecção de motor parado
-- Flags de vibração corrigidas | Contagem de erros unificada
-- Tempo desde última vibração | SW-420 mais robusto (RISING em vez de CHANGE)
-- `lerCorrente()` com RMS para corrente CA
-- Verificação do Hall corrigida (repouso = LOW com `INPUT_PULLUP`)
-- Snapshots de vibração capturados atomicamente antes da avaliação
-- Gravação das leituras em cartão SD (`LOG.CSV`), tolerante a falha
+---
+
+## Melhorias v4 (histórico pré-refatoração)
+Watchdog | Média móvel PT100 | Detecção de motor parado | Flags de
+vibração corrigidas | Contagem de erros unificada | Tempo desde
+última vibração | SW-420 mais robusto.
+
+## Correções v5 (histórico pré-refatoração)
+SW-420 `CHANGE`→`RISING` (evita duplo disparo) | `lerCorrente()` com
+RMS para corrente CA | Verificação Hall corrigida (repouso = LOW com
+`INPUT_PULLUP`) | Snapshots de vibração capturados atomicamente.
+
+## Adição v6 (histórico pré-refatoração)
+Gravação das leituras em cartão SD (`LOG.CSV`, 1 linha por ciclo).
+Falha no SD não trava a bancada.
+
+---
+
+## Próximos passos
+- **Passo 9**: reescrever `BancadaPreditiva.ino` como orquestrador
+  fino (mover as telas de boot de `verificarPerifericos()`/
+  `countdown45s()` para dentro de `Display`, remover includes de
+  biblioteca que já não são usados diretamente no `.ino`).
+- **Passo 10**: testes da lógica pura (`LogicaAvaliacao`), se migrar
+  para PlatformIO.
