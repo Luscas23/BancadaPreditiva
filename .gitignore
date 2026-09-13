@@ -1,0 +1,9 @@
+# Artefatos de build do Arduino IDE / arduino-cli
+build/
+*.hex
+*.elf
+*.bin
+*.map
+
+# Arquivos de configuração de IDE (opcional, remova se quiser versionar)
+.vscode/
