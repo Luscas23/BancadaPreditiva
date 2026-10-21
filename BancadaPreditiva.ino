@@ -9,104 +9,64 @@
 #include "LogicaAvaliacao.h"
 #include "Display.h"
 #include "LoggerSD.h"
-#include "Destino.h"       // DESTINO_SERIAL, usado no log Serial
 
-float setpointTemp    = 60.0;
-float toleranciaTemp  = 20.0;
-#define TEMP_GRAVE     100.0
-
-// Motor 127V: setpointCorr=2.9, toleranciaCorr=0.4, CORR_GRAVE=4.0
-// Motor 220V: setpointCorr=1.4, toleranciaCorr=0.2, CORR_GRAVE=2.0
-float setpointCorr    = 2.9;
-float toleranciaCorr  = 0.4;
-#define CORR_GRAVE     4.0
-
-float setpointRPM     = 1740.0;
-float toleranciaRPM   = 140.0;
-#define RPM_GRAVE_MIN  1400.0
-#define RPM_GRAVE_MAX  2000.0
-
-// Passo 7 — empacota os setpoints acima para o módulo LogicaAvaliacao.
-// Montada uma única vez: nada aqui muda em runtime hoje.
-LimitesAvaliacao limites = {
-  setpointTemp, toleranciaTemp, TEMP_GRAVE,
-  setpointCorr, toleranciaCorr, CORR_GRAVE,
-  setpointRPM, toleranciaRPM, RPM_GRAVE_MIN, RPM_GRAVE_MAX
+// Motor 127V: setpointCorr=2.9, toleranciaCorr=0.4, corrGrave=4.0
+// Motor 220V: setpointCorr=1.4, toleranciaCorr=0.2, corrGrave=2.0
+const LimitesAvaliacao limites = {
+  60.0, 20.0, 100.0,          // temperatura: setpoint, tolerancia, grave
+  2.9,  0.4,  4.0,            // corrente:    setpoint, tolerancia, grave
+  1740.0, 140.0, 1400.0, 2000.0  // RPM: setpoint, tolerancia, grave min/max
 };
 
-float temperatura  = 0.0;
-float corrente     = 0.0;
-// erroSensor mora em SensorPT100.cpp (extern via SensorPT100.h)
-// lcd mora em Display.cpp (extern via Display.h)
-// sdDisponivel mora em LoggerSD.cpp (extern via LoggerSD.h)
-
-bool okDisplay  = false;
-bool okPT100    = false;
-bool okACS712   = false;
-bool okHall     = false;
-bool okSW420_1  = false;
-bool okSW420_2  = false;
-bool okAndon    = false;
-bool okSD       = false;   // informativo; falha aqui NÃO bloqueia o funcionamento da bancada
-
-void iniciarWatchdog() {
-  wdt_enable(WDTO_8S);
-}
-
 void verificarPerifericos() {
-  displayFase1Inicio();
+  displayMsg(F("Verificando"), F("sistema..."));
   delay(1000);
 
   // Display
-  okDisplay = true;
-  displayFase1StatusDisplay();
+  displayStatus(F("Display"), true);
   delay(500);
 
   // PT100
-  okPT100 = verificarPT100();
-  displayFase1StatusPT100(okPT100);
+  bool okPT100 = verificarPT100();
+  displayStatus(F("PT100"), okPT100);
   delay(500);
 
   // ACS712
-  okACS712 = verificarACS712();
-  displayFase1StatusACS712(okACS712);
+  bool okACS712 = verificarACS712();
+  displayStatus(F("ACS712"), okACS712);
   delay(800);
 
-  displayFase1Continuacao();
+  displayMsg(F("Verificando"), F("mais sensores..."));
 
   // Hall
-  okHall = verificarHall();
-  displayFase1StatusHall(okHall);
+  bool okHall = verificarHall();
+  displayStatus(F("Sensor Hall"), okHall);
   delay(500);
 
-  // SW-420: verifica cada sensor de verdade (Correção — antes
-  // chamava uma função que não existia no projeto e as duas flags
-  // eram fixadas em 'true' incondicionalmente; ver SensorVibracao.h)
+  // SW-420: verifica cada sensor de verdade (ver SensorVibracao.h)
+  bool okSW420_1, okSW420_2;
   verificarVibracao(okSW420_1, okSW420_2);
-  displayFase1StatusVibr1(okSW420_1);
+  displayStatus(F("Vibr. SW1"), okSW420_1);
   delay(500);
-  displayFase1StatusVibr2(okSW420_2);
+  displayStatus(F("Vibr. SW2"), okSW420_2);
   delay(500);
 
   // Andon
-  displayFase1TelaAndon();
+  displayMsg(F("Verificando"), F("Torre Andon..."));
   setAndon(ANDON_GRAVE);   delay(300);
   setAndon(ANDON_DEFEITO); delay(300);
   setAndon(ANDON_BOM);     delay(300);
   setAndon(ANDON_GRAVE);
-  okAndon = true;
-  displayFase1StatusAndon();
+  displayStatus(F("Torre Andon"), true);
   delay(500);
 
   // Cartão SD (informativo: falha aqui não impede o resumo final)
-  okSD = loggerSDInit();
-  sdDisponivel = okSD;
-  displayFase1StatusSD(okSD);
+  sdDisponivel = loggerSDInit();
+  displayStatus(F("Cartao SD"), sdDisponivel);
   delay(500);
 
   // Resumo
-  bool tudo_ok = okDisplay && okPT100 && okACS712 &&
-                 okHall && okSW420_1 && okSW420_2 && okAndon;
+  bool tudo_ok = okPT100 && okACS712 && okHall && okSW420_1 && okSW420_2;
 
   displayFase1Resultado(tudo_ok, okPT100, okACS712, okHall, okSW420_1, okSW420_2);
 
@@ -125,7 +85,7 @@ void countdown45s() {
     delay(500);
   }
 
-  displayFase2IniciandoLeitura();
+  displayMsg(F("INICIANDO"), F("LEITURA DO MOTOR"));
   piscarAndon(ANDON_BOM, 3, 200);
   setAndon(ANDON_BOM);
   delay(1500);
@@ -159,7 +119,7 @@ void setup() {
   loggerSDIniciarTempo();  // referência t=0 do CSV: começo da Fase 3, não do boot
 
   // Ativa watchdog apenas após inicialização completa
-  iniciarWatchdog();
+  wdt_enable(WDTO_8S);
 
   Serial.println(F("Temp(C)\tCorr(A)\tRPM\tErros\tMotor\tEstado"));
   if (sdDisponivel) Serial.println(F("Gravando em LOG.CSV no cartao SD"));
@@ -171,9 +131,9 @@ void loop() {
   wdt_reset();  // alimenta watchdog a cada ciclo
 
   // Leituras
-  temperatura = lerTemperatura();
-  corrente    = lerCorrente();
-  calcularRPM(setpointRPM, toleranciaRPM);
+  float temperatura = lerTemperatura();
+  float corrente    = lerCorrente();
+  calcularRPM(limites.setpointRPM, limites.toleranciaRPM);
 
   // Captura estado das flags atomicamente ANTES de qualquer avaliação
   noInterrupts();
@@ -203,10 +163,9 @@ void loop() {
   // Atualiza Andon
   setAndon(estado);
 
-  // Atualiza display — tela fixa 16x2 (Passo 11): só o essencial
-  // (temperatura, corrente, RPM, vibração). Estado/erros não vão mais
-  // pro LCD, quem sinaliza isso é a torre (setAndon() já foi chamado
-  // acima); flags de vibração são zeradas dentro, após a exibição.
+  // Atualiza display — tela fixa 16x2 com o essencial (temperatura,
+  // corrente, RPM, vibração); estado/erros ficam só na torre Andon.
+  // Flags de vibração são zeradas dentro, após a exibição.
   atualizarDisplay(temperatura, corrente);
 
   // Log Serial
@@ -214,8 +173,8 @@ void loop() {
   Serial.print(corrente, 3);    Serial.print(F("\t"));
   Serial.print((int)rpmAtual);  Serial.print(F("\t"));
   Serial.print(erros);          Serial.print(F("\t"));
-  Serial.print(motorParaTexto(estadoMotor, DESTINO_SERIAL)); Serial.print(F("\t"));
-  Serial.println(andonParaTexto(estado, DESTINO_SERIAL));
+  Serial.print(motorParaTexto(estadoMotor)); Serial.print(F("\t"));
+  Serial.println(andonParaTexto(estado));
 
   // Grava a mesma leitura no cartão SD (se disponível)
   gravarLeituraSD(temperatura, corrente, estado, erros);

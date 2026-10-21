@@ -35,32 +35,22 @@ void calcularRPM(float setpointRPM, float toleranciaRPM) {
 
     float novoRPM = (p / (float)PULSOS_POR_VOLTA) * (60000.0 / intervalo);
 
-    // Melhoria 6 — detecta estado do motor
-    if (novoRPM > 0) {
-      motorJaGirou = true;
-      float minRPM = setpointRPM - toleranciaRPM;
-      float maxRPM = setpointRPM + toleranciaRPM;
-      if (novoRPM >= minRPM && novoRPM <= maxRPM) estadoMotor = MOTOR_OPERANDO;
-      else                                          estadoMotor = MOTOR_ACELERANDO;
-    } else {
-      if (motorJaGirou) estadoMotor = MOTOR_PAROU;  // parada inesperada
-      else              estadoMotor = MOTOR_PARADO;
-    }
+    // Detecta estado do motor
+    bool dentroDaFaixa = (novoRPM >= setpointRPM - toleranciaRPM) &&
+                         (novoRPM <= setpointRPM + toleranciaRPM);
+    estadoMotor = (novoRPM > 0)
+                    ? (dentroDaFaixa ? MOTOR_OPERANDO : MOTOR_ACELERANDO)
+                    : (motorJaGirou  ? MOTOR_PAROU    : MOTOR_PARADO);
+    if (novoRPM > 0) motorJaGirou = true;
 
     rpmAtual         = novoRPM;
     ultimoCalculoRPM = agora;
   }
 }
 
-// Passo 12 — ver comentário em SensorRPM.h. Só MOTOR_PAROU diverge:
-// Serial mostra "PAROU!!!" (alerta pra quem tá olhando ao vivo), SD
-// grava "PAROU" puro pra não sujar o CSV com "!!!".
-const __FlashStringHelper* motorParaTexto(EstadoMotor motor, Destino destino) {
-  switch (motor) {
-    case MOTOR_PARADO:     return F("PARADO");
-    case MOTOR_ACELERANDO: return F("ACELERANDO");
-    case MOTOR_OPERANDO:   return F("OPERANDO");
-    case MOTOR_PAROU:      return (destino == DESTINO_SERIAL) ? F("PAROU!!!") : F("PAROU");
-  }
-  return F("");  // enum bem formado nunca cai aqui
+const __FlashStringHelper* motorParaTexto(EstadoMotor motor) {
+  static const __FlashStringHelper* const nomes[] = {
+    F("PARADO"), F("ACELERANDO"), F("OPERANDO"), F("PAROU")
+  };
+  return nomes[motor];
 }

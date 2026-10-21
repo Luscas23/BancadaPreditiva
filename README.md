@@ -22,7 +22,7 @@ BancadaPreditiva/
 ├── SensorPT100.h / .cpp   — leitura + média móvel + fault do PT100
 ├── SensorVibracao.h / .cpp — ISRs do SW-420 + debounce + timestamps
 ├── SensorRPM.h / .cpp     — ISR Hall + cálculo de RPM + EstadoMotor
-├── LogicaAvaliacao.h / .cpp — contarErros()/avaliarEstado(), puro C++
+├── LogicaAvaliacao.h / .cpp — avaliarEstado(), puro C++
 ├── Display.h / .cpp       — objeto lcd + atualizarDisplay()
 ├── LoggerSD.h / .cpp      — gravação em cartão SD (LOG.CSV)
 ├── CHANGELOG.md

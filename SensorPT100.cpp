@@ -4,23 +4,22 @@ Adafruit_MAX31865 pt100 = Adafruit_MAX31865(PIN_MAX31865_CS);
 
 bool erroSensor = false;
 
-// Melhoria 5 — Média móvel temperatura (últimas 5 leituras)
-// Buffer e índice agora são privados ao módulo (static): nenhum outro
-// arquivo precisa enxergá-los, só o resultado via lerTemperatura().
-#define MEDIA_MOVEL_N 5
-static float bufferTemp[MEDIA_MOVEL_N] = {0};
-static int   indexTemp                 = 0;
-static bool  bufferPreenchido          = false;
+// Filtro passa-baixa (média móvel exponencial) na temperatura, pra
+// suavizar ruído de leitura sem guardar um histórico de amostras.
+// ALFA mais perto de 1 = responde mais rápido a mudanças reais;
+// mais perto de 0 = mais suave (mais atraso).
+#define FILTRO_TEMP_ALFA 0.2f
+static float temperaturaFiltrada = 0;
+static bool  filtroIniciado      = false;
 
-static float mediaMovelTemp(float novaLeitura) {
-  bufferTemp[indexTemp] = novaLeitura;
-  indexTemp = (indexTemp + 1) % MEDIA_MOVEL_N;
-  if (indexTemp == 0) bufferPreenchido = true;
-
-  int n    = bufferPreenchido ? MEDIA_MOVEL_N : indexTemp;
-  float soma = 0;
-  for (int i = 0; i < n; i++) soma += bufferTemp[i];
-  return soma / n;
+static float filtrarTemp(float novaLeitura) {
+  if (!filtroIniciado) {
+    temperaturaFiltrada = novaLeitura;
+    filtroIniciado      = true;
+  } else {
+    temperaturaFiltrada += (novaLeitura - temperaturaFiltrada) * FILTRO_TEMP_ALFA;
+  }
+  return temperaturaFiltrada;
 }
 
 void pt100Init() {
@@ -36,7 +35,7 @@ float lerTemperatura() {
     return -999.0;
   }
   erroSensor = false;
-  return mediaMovelTemp(t);   // Melhoria 5
+  return filtrarTemp(t);
 }
 
 bool verificarPT100() {

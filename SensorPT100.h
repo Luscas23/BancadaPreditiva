@@ -18,9 +18,9 @@ extern bool erroSensor;
 // Inicializa o driver MAX31865 (chamar uma vez no setup, via pt100.begin)
 void pt100Init();
 
-// Leitura de temperatura com média móvel (últimas 5 amostras) e
-// tratamento de fault. Retorna -999.0 e seta erroSensor=true em caso
-// de fault (fault é limpo internamente via pt100.clearFault()).
+// Leitura de temperatura com filtro passa-baixa e tratamento de
+// fault. Retorna -999.0 e seta erroSensor=true em caso de fault
+// (fault é limpo internamente via pt100.clearFault()).
 float lerTemperatura();
 
 // Verificação de presença/sanidade do sensor na Fase 1

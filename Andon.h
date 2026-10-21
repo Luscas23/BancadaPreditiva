@@ -2,7 +2,6 @@
 #define ANDON_H
 
 #include <Arduino.h>
-#include "Destino.h"
 
 // ----------------------------------------------------------------
 //  ANDON — Torre de sinalização (Verde / Amarelo / Vermelho)
@@ -36,10 +35,8 @@ void piscarAndon(EstadoAndon estado, int vezes, int ms);
 #define ANDON_CICLOS_CONFIRMACAO_MELHORA 3
 EstadoAndon estabilizarAndon(EstadoAndon novoEstado);
 
-// Passo 12 — único lugar que sabe o nome de cada EstadoAndon. Serial
-// e SD chamam esta função em vez de terem cada um o próprio switch.
-// Hoje as duas usam a mesma palavra pros 3 estados, mas a assinatura
-// já recebe o destino pra não precisar mudar se algum dia divergir.
-const __FlashStringHelper* andonParaTexto(EstadoAndon estado, Destino destino);
+// Único lugar que sabe o nome de cada EstadoAndon. Serial e SD
+// chamam esta função em vez de terem cada um o próprio switch.
+const __FlashStringHelper* andonParaTexto(EstadoAndon estado);
 
 #endif

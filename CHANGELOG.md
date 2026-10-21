@@ -1,3 +1,61 @@
+## Limpeza (ponytail-review) — remoção de código morto e duplicado
+Passagem de revisão focada só em simplificação (nenhuma correção de bug,
+nenhuma feature nova). ~330 linhas a menos no total. Duas mudanças aqui
+alteram comportamento observável, marcadas abaixo.
+
+- **`BancadaPreditiva.ino`** — os `#define`/globais de setpoint
+  (`setpointTemp`, `TEMP_GRAVE` etc.) foram escritos direto dentro de
+  `limites` (agora `const`), em vez de existirem soltos só para serem
+  copiados uma vez no boot. `okDisplay`, `okPT100`, `okACS712`, `okHall`,
+  `okSW420_1/2`, `okAndon`, `okSD`, `temperatura` e `corrente` viraram
+  variáveis locais das funções que realmente usam (eram globais sem
+  necessidade). `iniciarWatchdog()` (um wrapper de uma linha, um só
+  chamador) foi inlinado como `wdt_enable(WDTO_8S)`.
+- **`Destino.h` removido** — existia só para `motorParaTexto()` poder
+  diferenciar `"PAROU!!!"` (Serial) de `"PAROU"` (SD); `andonParaTexto()`
+  recebia o mesmo parâmetro e nunca o usava. **Mudança de comportamento:**
+  o Serial agora imprime `"PAROU"` como o SD, sem o alerta `!!!`.
+  `andonParaTexto()`/`motorParaTexto()` perderam o parâmetro `destino` e
+  os dois switches de 3–4 casos viraram tabelas `const char* const[]`.
+- **`Display.h`/`Display.cpp`** — as 15 funções de tela quase idênticas
+  da Fase 1 (`displayFase1StatusPT100`, `displayFase1StatusHall` etc.)
+  foram substituídas por duas genéricas: `displayMsg(linha0, linha1)`
+  para telas estáticas e `displayStatus(nome, ok)` para as de OK/ERRO.
+  Textos e posições de cursor mantidos idênticos. `lcd` virou `static`
+  (só é usado dentro de `Display.cpp`). Os trechos que montavam `String`
+  e faziam padding manual por contagem de dígitos (resumo da Fase 1,
+  countdown da Fase 2, campo de RPM/vibração no display principal)
+  foram trocados por "limpa o campo, depois escreve o valor", sem
+  alocação de `String` em heap.
+- **`LogicaAvaliacao.cpp`** — `contarErros()` (parâmetro de saída
+  `bool &grave`) foi incorporada em `avaliarEstado()`, que agora é a
+  única função pública do módulo. As três bandas (temperatura, corrente,
+  RPM) passaram a usar uma função auxiliar `faixa()` comum em vez de
+  três blocos if/else quase idênticos; resultado numericamente
+  equivalente ao original (conferido caso a caso, incluindo o corte
+  assimétrico de `tempGrave`/`corrGrave` sem limite inferior).
+- **`SensorVibracao`** — `ultimoDebounce1/2` (sempre iguais a
+  `ultimaVibr1Ms`/`ultimaVibr2Ms`) foram removidas; o debounce agora
+  compara direto contra o timestamp público. `sw420_1_repouso`/
+  `sw420_2_repouso` viraram `static` (não eram lidas fora do módulo).
+- **`SensorPT100.cpp`** — a média móvel de 5 amostras (buffer + índice
+  + flag de preenchimento) foi trocada por um filtro passa-baixa
+  exponencial de 1 variável (`temperaturaFiltrada += (t -
+  temperaturaFiltrada) * 0.2`). **Mudança de comportamento:** a curva de
+  resposta do filtro muda (EMA reage mais rápido a uma mudança brusca e
+  nunca "esquece" totalmente uma leitura antiga, diferente da média
+  móvel de janela fixa); se a forma exata do filtro importar para o
+  TCC, vale revisar.
+- **`SensorRPM.cpp`** — o if/else aninhado que decide `EstadoMotor` virou
+  uma expressão ternária única.
+- Comentários de narração de changelog (`Correção —`, `Passo N`,
+  `Melhoria N`) removidos dos arquivos-fonte; esse histórico já vive
+  aqui no `CHANGELOG.md`. `CHANGELOG_PASSO9_snippet.md` (rascunho para
+  colar no changelog, já coberto pela entrada do Passo 9 abaixo) foi
+  removido.
+
+---
+
 ## Nova mudança — Centraliza mapeamento enum→texto (Destino.h)
 - Confirmado por inspeção: eram 4 blocos `switch` (não 6 — o LCD já
   tinha saído dessa conta no passo anterior), 2 por enum: Serial em
