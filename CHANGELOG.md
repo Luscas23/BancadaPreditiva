@@ -1,3 +1,65 @@
+## TCRT5000 no lugar do Hall + ADXL345 no lugar dos 2x SW-420
+Mudanças de comportamento:
+
+- **RPM (`SensorRPM`)**: sensor Hall KY-003 trocado por TCRT5000 (pino 18,
+  INT3 — o comentário antigo dizia INT5). `verificarHall()` virou
+  `verificarTCRT5000()`: 10 leituras a cada 200 us, ok se todas iguais
+  (detecta pino flutuando). A ISR rejeita pulsos com menos de
+  `PULSO_MIN_US` = 5000 us do anterior. **Polaridade fixa:** `INPUT` +
+  `RISING`, sem ler nível de repouso (com a marca refletiva parada em
+  posição qualquer no boot não existe repouso, e qualquer borda ocorre uma
+  vez por volta). Módulo com LM393 assumido; TCRT5000 "pelado" exige
+  `INPUT_PULLUP` + resistor.
+- **SW-420 removido**: pinos 2/3, ISRs, `vibr1/vibr2`, `ultimaVibr*Ms` e
+  debounce saíram. Os pinos 2/3 ficam livres; INT1 do ADXL345 não é usado.
+- **Vibração (`SensorVibracao`)**: reescrito. ADXL345 por Wire direto
+  (100 kHz, sem biblioteca Adafruit), ±4 g full-res, 400 Hz, FIFO em
+  STREAM. Janela de 128 amostras (~0,32 s, 3,125 Hz/bin), FFT Hann por
+  eixo, espectro RSS dos 3 eixos. Janela com overrun do FIFO ou erro de I2C
+  é descartada; 3 falhas seguidas = `erroSensorVib` (conta como ruim,
+  display `V:ERR`).
+- **Avaliação relativa à baseline**: a vibração deixou de ser digital
+  (`vibr2` = perigoso, `vibr1` = ruim). Agora é a razão
+  amplitude/baseline do pior entre 1X, 2X e banda alta (120–180 Hz), pela
+  mediana das últimas 3 janelas: ideal até `vibMultRuim` (2,0), ruim até
+  `vibMultGrave` (4,0), perigoso acima. Valores de partida, a ajustar na
+  bancada. Sem baseline, vibração não pontua; motor parado, razão 0.
+- **Baseline**: trava após 25 ciclos seguidos com motor OPERANDO, `erros`
+  == 0 e RPM dentro de `BASELINE_TOL_RPM` da média móvel; valor = média de
+  8 janelas seguintes; piso = max(baseline, ruído medido na Fase 1 × 5).
+  Gravada na EEPROM só ao calibrar e recarregada no boot (um reset do
+  watchdog com o motor já defeituoso não "normaliza" o defeito). Serial
+  `c` apaga e recalibra. A flag de validade depende de `ADXL_FS`/`ADXL_N`.
+  `BASELINE_TOL_RPM` ficou em 5% e não nos 2% do plano: com 1 pulso por
+  volta o RPM tem resolução de ~2,5% a 1740 RPM, e 2% reiniciaria a
+  contagem a cada leitura.
+- **Fase 1**: uma verificação só, `ADXL345` (DEVID 0xE5, gravidade entre
+  0,7 e 1,3 g, piso de ruído em 8 janelas). `displayFase1Resultado` lista
+  `TCRT` e `VIB`.
+- **Display**: campo de vibração mostra a frequência dominante: `V:29Hz`,
+  `C:29Hz` (calibrando), `V:---` (parado), `V:ERR`.
+- **Serial e CSV** ganham `freq_vib_hz, vib_1x_g, vib_2x_g, vib_alta_g,
+  vib_razao, vib_calib` (0 calibrando, 1 calibrado, 2 baseline da EEPROM).
+  **Um `LOG.CSV` antigo no cartão tem o cabeçalho de 7 colunas: apague ou
+  renomeie antes de gravar.**
+- **`delay(500)` removido do `loop()`**: o ritmo vem da janela (~0,32 s)
+  mais o processamento. Só se a janela falha há um `delay(500)`, para não
+  inundar Serial/SD.
+- **Medições (a preencher na bancada)**: o boot imprime
+  `ADXL345: janela X ms, piso Y g` (tempo de coleta + FFT dos 3 eixos);
+  a taxa real de linhas do CSV sai da coluna `tempo_s`.
+  - Tempo da janela no Mega: ____ ms
+  - Linhas por segundo no CSV: ____
+- Limites conhecidos: `ADXL_FS` = 800 não fecha com Wire a 100 kHz (~1,3 ms
+  por amostra contra 1,25 ms de período), o FIFO estoura e toda janela
+  falha. A escala em g de `vib_*_g` depende do fator de compensação do
+  `arduinoFFT` (`ADXL_ESCALA_FFT`): conferir com uma vibração conhecida; a
+  razão e a avaliação não são afetadas.
+- `teste/teste_logica.cpp` cobre as faixas de vibração em
+  `avaliarEstado()` e roda no PC.
+
+---
+
 ## Limpeza (ponytail-review) — remoção de código morto e duplicado
 Passagem de revisão focada só em simplificação (nenhuma correção de bug,
 nenhuma feature nova). ~330 linhas a menos no total. Duas mudanças aqui
@@ -228,9 +290,7 @@ Falha no SD não trava a bancada.
 ---
 
 ## Próximos passos
-- **Passo 9**: reescrever `BancadaPreditiva.ino` como orquestrador
-  fino (mover as telas de boot de `verificarPerifericos()`/
-  `countdown45s()` para dentro de `Display`, remover includes de
-  biblioteca que já não são usados diretamente no `.ino`).
+- **Passo 9** (concluído): telas de boot em `Display`, `.ino` só com
+  includes dos módulos.
 - **Passo 10**: testes da lógica pura (`LogicaAvaliacao`), se migrar
   para PlatformIO.

@@ -46,10 +46,14 @@ EstadoAndon avaliarEstado(const LeituraAtual& leitura, const LimitesAvaliacao& l
           limites.rpmGraveMin, limites.rpmGraveMax, ruim, perigoso);
   }
 
-  // Vibração (sensor digital, sem banda contínua): vibr2 já É o
-  // nível perigoso (crítico); vibr1 é o nível ruim (leve).
-  if (leitura.vibr2) perigoso++;
-  else if (leitura.vibr1) ruim++;
+  // Vibração: razão contra a baseline (ideal até vibMultRuim, ruim até
+  // vibMultGrave). Sem baseline não pontua.
+  if (leitura.erroSensorVib) {
+    ruim++;
+  } else if (leitura.vibCalibrado) {
+    faixa(leitura.vibRazao, 1.0, limites.vibMultRuim - 1.0,
+          -INFINITY, limites.vibMultGrave, ruim, perigoso);
+  }
 
   erros = ruim + perigoso;
 

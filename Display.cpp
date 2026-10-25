@@ -1,6 +1,5 @@
 #include "Display.h"
 #include "SensorPT100.h"     // erroSensor
-#include "SensorVibracao.h" // vibr1, vibr2, ultimaVibr1Ms, ultimaVibr2Ms
 #include "SensorRPM.h"      // rpmAtual, estadoMotor, EstadoMotor
 
 static LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -22,7 +21,7 @@ void displayStatus(const __FlashStringHelper* nome, bool ok) {
   lcd.setCursor(0, 1); lcd.print(ok ? F("OK") : F("ERRO"));
 }
 
-void atualizarDisplay(float temperatura, float corrente) {
+void atualizarDisplay(float temperatura, float corrente, float freqVib, EstadoVibTela estadoVib) {
 
   // ---- Linha 0 — Temperatura e Corrente ----
   lcd.setCursor(0, 0);
@@ -49,34 +48,17 @@ void atualizarDisplay(float temperatura, float corrente) {
   lcd.print(rpmInt);
 
   // Campo de vibração: 7 colunas fixas (9..15)
-  // Flags lidas ANTES de serem zeradas
   lcd.setCursor(9, 1);
-  if (vibr2) {
-    lcd.print(F("V:GRV  "));         // vibração faixa 2 (grave) neste ciclo
-  } else if (vibr1) {
-    lcd.print(F("V:DEF  "));         // vibração faixa 1 (defeito) neste ciclo
-  } else {
-    // Sem vibração neste ciclo: mostra há quanto tempo foi a última,
-    // considerando as duas faixas juntas (a mais recente das duas) —
-    // simplificação necessária pra caber ao lado do RPM nas 16 colunas.
-    unsigned long agora = millis();
-    unsigned long ultimaVibrMs = (ultimaVibr2Ms > ultimaVibr1Ms) ? ultimaVibr2Ms : ultimaVibr1Ms;
-    if (ultimaVibrMs == 0) {
-      lcd.print(F("V:---s "));
-    } else {
-      unsigned long s = (agora - ultimaVibrMs) / 1000;
-      if (s > 999) s = 999;
-      lcd.print(F("       "));       // limpa campo de 7 col (9..15) antes de reescrever
-      lcd.setCursor(9, 1);
-      lcd.print(F("V:"));
-      lcd.print(s);
-      lcd.print(F("s"));
-    }
+  lcd.print(F("       "));
+  lcd.setCursor(9, 1);
+  switch (estadoVib) {
+    case VIB_TELA_ERRO:   lcd.print(F("V:ERR")); break;
+    case VIB_TELA_PARADO: lcd.print(F("V:---")); break;
+    default:
+      lcd.print(estadoVib == VIB_TELA_CALIBRANDO ? F("C:") : F("V:"));
+      lcd.print((int)freqVib);
+      lcd.print(F("Hz"));
   }
-
-  // Limpa flags APÓS avaliação e exibição
-  vibr1 = false;
-  vibr2 = false;
 }
 
 void displayTelaBoot() {
@@ -86,8 +68,8 @@ void displayTelaBoot() {
   delay(1000);
 }
 
-void displayFase1Resultado(bool tudoOk, bool okPT100, bool okACS712, bool okHall,
-                            bool okVibr1, bool okVibr2) {
+void displayFase1Resultado(bool tudoOk, bool okPT100, bool okACS712, bool okTCRT5000,
+                            bool okADXL345) {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print(tudoOk ? F("Todos OK!") : F("Erros detect.:"));
@@ -102,9 +84,8 @@ void displayFase1Resultado(bool tudoOk, bool okPT100, bool okACS712, bool okHall
     uint8_t col = 0;
     if (!okPT100  && col < 16) { lcd.print(F("PT100 ")); col += 6; }
     if (!okACS712 && col < 16) { lcd.print(F("ACS "));   col += 4; }
-    if (!okHall   && col < 16) { lcd.print(F("HALL "));  col += 5; }
-    if (!okVibr1  && col < 16) { lcd.print(F("VIB1 "));  col += 5; }
-    if (!okVibr2  && col < 16) { lcd.print(F("VIB2 "));  col += 5; }
+    if (!okTCRT5000 && col < 16) { lcd.print(F("TCRT ")); col += 5; }
+    if (!okADXL345  && col < 16) { lcd.print(F("VIB "));  col += 4; }
   }
 }
 

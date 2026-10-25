@@ -31,7 +31,7 @@ bool loggerSDInit() {
     // comment='#')) leem normal; um humano abrindo no Excel só vê
     // uma linha de nota antes do cabeçalho de verdade.
     arquivo.println(F("# temp_C = -999.00 indica falha do sensor PT100 (fault do MAX31865) - nao e uma leitura real"));
-    arquivo.println(F("tempo_s,temp_C,corrente_A,rpm,erros,estado_motor,estado_andon"));
+    arquivo.println(F("tempo_s,temp_C,corrente_A,rpm,erros,estado_motor,estado_andon,freq_vib_hz,vib_1x_g,vib_2x_g,vib_alta_g,vib_razao,vib_calib"));
     arquivo.close();
   }
   return true;
@@ -41,7 +41,8 @@ void loggerSDIniciarTempo() {
   inicioLeituraMs = millis();
 }
 
-void gravarLeituraSD(float temperatura, float corrente, EstadoAndon estado, int erros) {
+void gravarLeituraSD(float temperatura, float corrente, EstadoAndon estado, int erros,
+                     const VibResultado &vib, float razao) {
   if (!sdDisponivel) return;  // recurso desabilitado — não tenta nem trava o ciclo
 
   File arquivo = SD.open(NOME_ARQUIVO_LOG, FILE_WRITE);
@@ -56,7 +57,13 @@ void gravarLeituraSD(float temperatura, float corrente, EstadoAndon estado, int 
   arquivo.print((int)rpmAtual);                             arquivo.print(F(","));
   arquivo.print(erros);                                     arquivo.print(F(","));
   arquivo.print(motorParaTexto(estadoMotor)); arquivo.print(F(","));
-  arquivo.println(andonParaTexto(estado));
+  arquivo.print(andonParaTexto(estado));                    arquivo.print(F(","));
+  arquivo.print(vib.freqDominante, 1);                      arquivo.print(F(","));
+  arquivo.print(vib.amp1X, 4);                              arquivo.print(F(","));
+  arquivo.print(vib.amp2X, 4);                              arquivo.print(F(","));
+  arquivo.print(vib.ampAlta, 4);                            arquivo.print(F(","));
+  arquivo.print(razao, 2);                                  arquivo.print(F(","));
+  arquivo.println((int)vibCalib);
 
   arquivo.close();  // fecha = grava (flush) no cartão imediatamente
 }

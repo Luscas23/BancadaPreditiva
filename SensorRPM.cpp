@@ -9,19 +9,33 @@ float       rpmAtual    = 0.0;
 EstadoMotor estadoMotor  = MOTOR_PARADO;
 bool        motorJaGirou = false;
 
-static void ISR_hall() {
+static volatile unsigned long ultimoPulsoUs = 0;
+
+static void ISR_tcrt5000() {
+  unsigned long agora = micros();
+  if (agora - ultimoPulsoUs < PULSO_MIN_US) return;
+  ultimoPulsoUs = agora;
   pulsos++;
 }
 
 void rpmInit() {
-  pinMode(PIN_HALL, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(PIN_HALL), ISR_hall, RISING);
+  // TCRT5000 "pelado" (sem LM393): usar INPUT_PULLUP + resistor
+  pinMode(PIN_TCRT5000, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PIN_TCRT5000), ISR_tcrt5000, RISING);
   ultimoCalculoRPM = millis();
 }
 
-bool verificarHall() {
-  // Corrigido: com INPUT_PULLUP, repouso é LOW (HIGH = ausente ou ímã passando)
-  return (digitalRead(PIN_HALL) == LOW);
+static bool pinoEstavel(uint8_t pino) {
+  int primeiro = digitalRead(pino);
+  for (int i = 1; i < TCRT_AMOSTRAS_VERIFICACAO; i++) {
+    delayMicroseconds(TCRT_INTERVALO_VERIFICACAO_US);
+    if (digitalRead(pino) != primeiro) return false;
+  }
+  return true;
+}
+
+bool verificarTCRT5000() {
+  return pinoEstavel(PIN_TCRT5000);
 }
 
 void calcularRPM(float setpointRPM, float toleranciaRPM) {

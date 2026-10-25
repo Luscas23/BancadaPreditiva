@@ -15,7 +15,8 @@
 const LimitesAvaliacao limites = {
   60.0, 20.0, 100.0,          // temperatura: setpoint, tolerancia, grave
   2.9,  0.4,  4.0,            // corrente:    setpoint, tolerancia, grave
-  1740.0, 140.0, 1400.0, 2000.0  // RPM: setpoint, tolerancia, grave min/max
+  1740.0, 140.0, 1400.0, 2000.0, // RPM: setpoint, tolerancia, grave min/max
+  2.0,  4.0                      // vibracao (amplitude/baseline): ruim, grave
 };
 
 void verificarPerifericos() {
@@ -38,17 +39,15 @@ void verificarPerifericos() {
 
   displayMsg(F("Verificando"), F("mais sensores..."));
 
-  // Hall
-  bool okHall = verificarHall();
-  displayStatus(F("Sensor Hall"), okHall);
+  // TCRT5000
+  bool okTCRT5000 = verificarTCRT5000();
+  displayStatus(F("TCRT5000"), okTCRT5000);
   delay(500);
 
-  // SW-420: verifica cada sensor de verdade (ver SensorVibracao.h)
-  bool okSW420_1, okSW420_2;
-  verificarVibracao(okSW420_1, okSW420_2);
-  displayStatus(F("Vibr. SW1"), okSW420_1);
-  delay(500);
-  displayStatus(F("Vibr. SW2"), okSW420_2);
+  // ADXL345 (motor parado: mede o piso de ruído)
+  float pisoRuido;
+  bool okADXL345 = verificarADXL345(pisoRuido);
+  displayStatus(F("ADXL345"), okADXL345);
   delay(500);
 
   // Andon
@@ -66,9 +65,9 @@ void verificarPerifericos() {
   delay(500);
 
   // Resumo
-  bool tudo_ok = okPT100 && okACS712 && okHall && okSW420_1 && okSW420_2;
+  bool tudo_ok = okPT100 && okACS712 && okTCRT5000 && okADXL345;
 
-  displayFase1Resultado(tudo_ok, okPT100, okACS712, okHall, okSW420_1, okSW420_2);
+  displayFase1Resultado(tudo_ok, okPT100, okACS712, okTCRT5000, okADXL345);
 
   if (tudo_ok) setAndon(ANDON_BOM);
   else { piscarAndon(ANDON_DEFEITO, 3, 300); setAndon(ANDON_DEFEITO); }
@@ -103,7 +102,7 @@ void setup() {
   andonInit();
   setAndon(ANDON_GRAVE);
 
-  vibracaoInit();
+  if (!vibracaoInit()) Serial.println(F("ADXL345 nao respondeu no boot"));
   rpmInit();
 
   // LCD
@@ -121,7 +120,7 @@ void setup() {
   // Ativa watchdog apenas após inicialização completa
   wdt_enable(WDTO_8S);
 
-  Serial.println(F("Temp(C)\tCorr(A)\tRPM\tErros\tMotor\tEstado"));
+  Serial.println(F("Temp(C)\tCorr(A)\tRPM\tErros\tMotor\tEstado\tFreq(Hz)\t1X(g)\t2X(g)\tAlta(g)\tRazao\tCalib"));
   if (sdDisponivel) Serial.println(F("Gravando em LOG.CSV no cartao SD"));
   else              Serial.println(F("Cartao SD indisponivel - gravacao desabilitada"));
 }
@@ -130,16 +129,18 @@ void loop() {
 
   wdt_reset();  // alimenta watchdog a cada ciclo
 
+  while (Serial.available()) {
+    if (Serial.read() == 'c') vibracaoRecalibrar();
+  }
+
   // Leituras
   float temperatura = lerTemperatura();
   float corrente    = lerCorrente();
   calcularRPM(limites.setpointRPM, limites.toleranciaRPM);
 
-  // Captura estado das flags atomicamente ANTES de qualquer avaliação
-  noInterrupts();
-  bool vibr1_snapshot = vibr1;
-  bool vibr2_snapshot = vibr2;
-  interrupts();
+  // A janela de vibração (~0,32 s) dá o ritmo do ciclo
+  VibResultado vib = {};
+  bool okVib = vibracaoLerJanela(rpmAtual, vib);
 
   // Monta a leitura atual para a lógica pura de decisão
   LeituraAtual leitura;
@@ -147,12 +148,14 @@ void loop() {
   leitura.corrente     = corrente;
   leitura.rpm          = rpmAtual;
   leitura.motorJaGirou = motorJaGirou;
-  leitura.vibr1        = vibr1_snapshot;
-  leitura.vibr2        = vibr2_snapshot;
+  leitura.vibRazao       = vibRazao;
+  leitura.vibCalibrado   = (vibCalib != VIB_CALIBRANDO);
+  leitura.erroSensorVib  = erroSensorVib;
   leitura.erroSensorTemp = erroSensor;
 
   int erros = 0;
   EstadoAndon estado = avaliarEstado(leitura, limites, erros);
+  vibracaoCalibrar(rpmAtual, estadoMotor, erros);
 
   // Histerese assimétrica: piora aparece na hora, melhora só depois
   // de alguns ciclos seguidos (ver Andon.h). 'estado' vira o valor já
@@ -164,9 +167,13 @@ void loop() {
   setAndon(estado);
 
   // Atualiza display — tela fixa 16x2 com o essencial (temperatura,
-  // corrente, RPM, vibração); estado/erros ficam só na torre Andon.
-  // Flags de vibração são zeradas dentro, após a exibição.
-  atualizarDisplay(temperatura, corrente);
+  // corrente, RPM, frequência dominante); estado/erros ficam só na
+  // torre Andon.
+  EstadoVibTela telaVib = VIB_TELA_OK;
+  if      (erroSensorVib)              telaVib = VIB_TELA_ERRO;
+  else if (rpmAtual == 0)              telaVib = VIB_TELA_PARADO;
+  else if (vibCalib == VIB_CALIBRANDO) telaVib = VIB_TELA_CALIBRANDO;
+  atualizarDisplay(temperatura, corrente, vib.freqDominante, telaVib);
 
   // Log Serial
   Serial.print(temperatura, 2); Serial.print(F("\t"));
@@ -174,10 +181,17 @@ void loop() {
   Serial.print((int)rpmAtual);  Serial.print(F("\t"));
   Serial.print(erros);          Serial.print(F("\t"));
   Serial.print(motorParaTexto(estadoMotor)); Serial.print(F("\t"));
-  Serial.println(andonParaTexto(estado));
+  Serial.print(andonParaTexto(estado));      Serial.print(F("\t"));
+  Serial.print(vib.freqDominante, 1);        Serial.print(F("\t"));
+  Serial.print(vib.amp1X, 4);                Serial.print(F("\t"));
+  Serial.print(vib.amp2X, 4);                Serial.print(F("\t"));
+  Serial.print(vib.ampAlta, 4);              Serial.print(F("\t"));
+  Serial.print(vibRazao, 2);                 Serial.print(F("\t"));
+  Serial.println((int)vibCalib);
 
   // Grava a mesma leitura no cartão SD (se disponível)
-  gravarLeituraSD(temperatura, corrente, estado, erros);
+  gravarLeituraSD(temperatura, corrente, estado, erros, vib, vibRazao);
 
-  delay(500);
+  // Sem janela válida o ciclo não tem ritmo próprio: evita inundar Serial/SD
+  if (!okVib) delay(500);
 }

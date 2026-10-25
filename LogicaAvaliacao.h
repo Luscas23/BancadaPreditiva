@@ -19,8 +19,9 @@ struct LeituraAtual {
   float corrente;
   float rpm;
   bool  motorJaGirou;
-  bool  vibr1;
-  bool  vibr2;
+  float vibRazao;        // amplitude / baseline (pior de 1X, 2X, ALTA)
+  bool  vibCalibrado;    // false = ainda sem baseline; vibração não pontua
+  bool  erroSensorVib;   // true = ADXL345 sem janela válida
   bool  erroSensorTemp;  // true = MAX31865 acusou fault neste ciclo;
                           // 'temperatura' vem como -999.0 e não deve
                           // ser comparada contra as bandas normais
@@ -40,6 +41,9 @@ struct LimitesAvaliacao {
   float toleranciaRPM;
   float rpmGraveMin;
   float rpmGraveMax;
+
+  float vibMultRuim;    // razão acima disso = RUIM
+  float vibMultGrave;   // razão acima disso = PERIGOSO
 };
 
 // Classifica cada variável em 3 faixas (IDEAL / RUIM / PERIGOSO), no

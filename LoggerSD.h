@@ -2,6 +2,7 @@
 #define LOGGER_SD_H
 
 #include "Andon.h"
+#include "SensorVibracao.h"   // VibResultado
 
 #define PIN_SD_CS  4   // mesmo barramento SPI do PT100
 
@@ -11,6 +12,7 @@ extern bool sdDisponivel;
 
 bool loggerSDInit();          // monta o cartão e cria o CSV com cabeçalho se preciso
 void loggerSDIniciarTempo();  // zera a referência t=0 (chamar no início da Fase 3)
-void gravarLeituraSD(float temperatura, float corrente, EstadoAndon estado, int erros);
+void gravarLeituraSD(float temperatura, float corrente, EstadoAndon estado, int erros,
+                     const VibResultado &vib, float vibRazao);
 
 #endif

@@ -2,14 +2,19 @@
 
 TCC — Engenharia Mecatrônica | Lucas Altruda Salce
 
-Arduino Mega 2560 + LCD 20x4 I2C + PT100/MAX31865 + ACS712-5A +
-sensor Hall KY-003 + 2x SW-420 + torre Andon + cartão SD.
+Arduino Mega 2560 + LCD 16x2 I2C + PT100/MAX31865 + ACS712-5A +
+sensor óptico TCRT5000 (RPM, pino 18) + acelerômetro ADXL345 (vibração,
+I2C 0x53, SDA=20/SCL=21) + torre Andon + cartão SD.
+
+Bibliotecas: `arduinoFFT` 2.x, `LiquidCrystal_I2C`, `Adafruit_MAX31865`,
+`SD`. Comando Serial `c` apaga a baseline de vibração e recalibra.
 
 ## Status da refatoração modular
 
 Reestruturando o projeto de um único `.ino` monolítico para módulos
 por responsabilidade, sem alterar o comportamento da bancada.
-Progresso: **Passo 8/10 concluído**. Veja `CHANGELOG.md` para o
+Progresso: **Passo 9/10 concluído** (falta o Passo 10, testes da lógica
+pura). Veja `CHANGELOG.md` para o
 histórico completo de cada passo.
 
 ## Estrutura atual (abas do Arduino IDE)
@@ -20,11 +25,12 @@ BancadaPreditiva/
 ├── Andon.h / .cpp         — torre de sinalização
 ├── SensorCorrente.h / .cpp — leitura RMS do ACS712
 ├── SensorPT100.h / .cpp   — leitura + média móvel + fault do PT100
-├── SensorVibracao.h / .cpp — ISRs do SW-420 + debounce + timestamps
-├── SensorRPM.h / .cpp     — ISR Hall + cálculo de RPM + EstadoMotor
+├── SensorVibracao.h / .cpp — ADXL345 (I2C) + FFT por janela + baseline na EEPROM
+├── SensorRPM.h / .cpp     — ISR TCRT5000 + cálculo de RPM + EstadoMotor
 ├── LogicaAvaliacao.h / .cpp — avaliarEstado(), puro C++
 ├── Display.h / .cpp       — objeto lcd + atualizarDisplay()
 ├── LoggerSD.h / .cpp      — gravação em cartão SD (LOG.CSV)
+├── teste/                 — teste_logica.cpp (roda no PC, sem a bancada)
 ├── CHANGELOG.md
 └── README.md
 ```
