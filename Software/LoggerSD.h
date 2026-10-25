@@ -4,12 +4,13 @@
 #include "Andon.h"
 #include "SensorVibracao.h"   // VibResultado
 
-#define PIN_SD_CS  4   // mesmo barramento SPI do PT100
-
 // true = cartão presente e funcionando. A bancada monitora igual se false.
 extern bool sdDisponivel;
 
-bool loggerSDInit();          // monta o cartão e cria o CSV com cabeçalho se preciso
+bool loggerSDMontar();        // só SD.begin: o CONFIG.TXT é lido antes do log
+// Cria o CSV com cabeçalho se preciso e anota a configuração usada (linhas '#').
+// Chamar depois de configValidar().
+bool loggerSDInit();
 void loggerSDIniciarTempo();  // zera a referência t=0 (chamar no fim do setup)
 
 // Imprime a leitura atual (sem o tempo) em 'p' com o separador 'sep'.

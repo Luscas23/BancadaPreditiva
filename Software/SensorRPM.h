@@ -4,16 +4,12 @@
 #include <Arduino.h>
 
 // ----------------------------------------------------------------
-//  RPM — TCRT5000 no eixo de saída da redução 1:26 (~67 RPM),
-//  1 marca refletiva. RPM do motor = 60e6 / período(us) * REDUCAO.
+//  RPM — TCRT5000 no eixo de saída da redução (ver cfg.reducao),
+//  marcas por volta em cfg.tcrtMarcas.
+//  RPM do motor = 60e6 / período(us) * cfg.reducao / cfg.tcrtMarcas.
+//  Pulsos mais próximos que cfg.pulsoMinUs são ruído; sem pulso por
+//  cfg.rpmTimeoutMs: RPM = 0.
 // ----------------------------------------------------------------
-#define PIN_TCRT5000       18    // INT3
-#define REDUCAO            26
-
-// Período real ~870 ms: pulsos mais próximos que isso são ruído
-#define PULSO_MIN_US       200000UL
-// Sem pulso por mais tempo que isso: RPM = 0
-#define RPM_TIMEOUT_US     2000000UL
 
 typedef enum {
   MOTOR_PARADO,        // RPM = 0

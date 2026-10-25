@@ -6,12 +6,7 @@
 // ----------------------------------------------------------------
 //  ACS712-5A — Sensor de corrente
 // ----------------------------------------------------------------
-#define PIN_ACS712         A0
-
-#define ACS712_SENS        0.185
-#define VCC                5.0
-#define ADC_MAX            1023.0
-#define AMOSTRAS_CORRENTE  400    // ~84 ms = 5 ciclos de 60 Hz
+// Pino, sensibilidade, VCC e amostragem vêm de cfg (ADC_MAX em config.h).
 
 // Corrente RMS. O offset sai da média da própria janela (sem calibração).
 float lerCorrente();

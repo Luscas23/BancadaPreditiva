@@ -1,4 +1,5 @@
 #include "SensorRPM.h"
+#include "Configuracao.h"
 
 static volatile unsigned long ultimoPulsoUs = 0;
 static volatile unsigned long periodoUs     = 0;     // 0 = sem período válido
@@ -10,7 +11,7 @@ EstadoMotor estadoMotor = MOTOR_PARADO;
 static void ISR_tcrt5000() {
   unsigned long agora = micros();
   if (temPulso) {
-    if (agora - ultimoPulsoUs < PULSO_MIN_US) return;
+    if (agora - ultimoPulsoUs < cfg.pulsoMinUs) return;
     periodoUs = agora - ultimoPulsoUs;
   }
   temPulso      = true;
@@ -18,17 +19,17 @@ static void ISR_tcrt5000() {
 }
 
 void rpmInit() {
-  pinMode(PIN_TCRT5000, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PIN_TCRT5000), ISR_tcrt5000, RISING);
+  pinMode(cfg.pinTcrt, INPUT);
+  attachInterrupt(digitalPinToInterrupt(cfg.pinTcrt), ISR_tcrt5000, RISING);
 }
 
 void calcularRPM(float setpointRPM, float toleranciaRPM) {
   noInterrupts();   // periodoUs tem 32 bits: leitura atômica
-  if (temPulso && micros() - ultimoPulsoUs > RPM_TIMEOUT_US) { temPulso = false; periodoUs = 0; }
+  if (temPulso && micros() - ultimoPulsoUs > cfg.rpmTimeoutMs * 1000UL) { temPulso = false; periodoUs = 0; }
   unsigned long p = periodoUs;
   interrupts();
 
-  rpmAtual = p ? 60e6f / p * REDUCAO : 0.0f;
+  rpmAtual = p ? 60e6f / p * cfg.reducao / cfg.tcrtMarcas : 0.0f;
 
   bool dentroDaFaixa = (rpmAtual >= setpointRPM - toleranciaRPM) &&
                        (rpmAtual <= setpointRPM + toleranciaRPM);

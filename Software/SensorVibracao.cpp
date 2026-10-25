@@ -2,6 +2,7 @@
 #include <EEPROM.h>
 #include <arduinoFFT.h>
 #include "SensorVibracao.h"
+#include "Configuracao.h"
 
 float    vibRazao      = 0.0;
 bool     erroSensorVib = false;
@@ -13,6 +14,7 @@ static float   vImag[ADXL_N];
 static float   espectro[ADXL_N / 2];
 static ArduinoFFT<float> fft(vReal, vImag, ADXL_N, ADXL_FS);
 
+static int          binMin, binMax, binAltaMin;   // bins das bandas, calculados em vibracaoInit()
 static float        pisoRuido = 0.0;
 static float        baseline[3];
 static uint8_t      falhas = 0;
@@ -27,17 +29,17 @@ static float   rpmMedia = 0.0;
 // ---------------- I2C ----------------
 
 static bool escreverReg(uint8_t reg, uint8_t valor) {
-  Wire.beginTransmission(ADXL_ENDERECO);
+  Wire.beginTransmission(cfg.enderecoAdxl);
   Wire.write(reg);
   Wire.write(valor);
   return Wire.endTransmission() == 0;
 }
 
 static bool lerRegs(uint8_t reg, uint8_t *buf, uint8_t n) {
-  Wire.beginTransmission(ADXL_ENDERECO);
+  Wire.beginTransmission(cfg.enderecoAdxl);
   Wire.write(reg);
   if (Wire.endTransmission(false) != 0) return false;
-  if (Wire.requestFrom((uint8_t)ADXL_ENDERECO, n) != n) return false;
+  if (Wire.requestFrom(cfg.enderecoAdxl, n) != n) return false;
   for (uint8_t i = 0; i < n; i++) buf[i] = Wire.read();
   return true;
 }
@@ -61,7 +63,7 @@ static bool lerAmostra(int16_t s[3]) {
 // amostra, para alcançar o relógio do sensor.
 static bool drenarFifo() {
   int16_t descarte[3];
-  for (uint8_t t = 0; t < 16; t++) {
+  for (uint8_t t = 0; t < ADXL_DRENAR_TENTATIVAS; t++) {
     int8_t e = entradasFifo();
     if (e < 0) return false;
     if (e == 0) return true;
@@ -134,12 +136,12 @@ static float maxBanda(int lo, int hi) {
 
 static float ampHarmonica(float hz) {
   int centro = (int)(hz * ADXL_N / ADXL_FS + 0.5f);
-  return maxBanda(centro - ADXL_BANDA_BINS, centro + ADXL_BANDA_BINS);
+  return maxBanda(centro - cfg.adxlBandaBins, centro + cfg.adxlBandaBins);
 }
 
 static float freqDominante() {
-  int pico = ADXL_BIN_MIN;
-  for (int k = ADXL_BIN_MIN + 1; k <= ADXL_BIN_MAX; k++)
+  int pico = binMin;
+  for (int k = binMin + 1; k <= binMax; k++)
     if (espectro[k] > espectro[pico]) pico = k;
 
   float a = espectro[pico - 1], b = espectro[pico], c = espectro[pico + 1];
@@ -174,12 +176,14 @@ static void atualizarRazao(float rpm, const VibResultado &r) {
 
 struct BaselineEEPROM {
   float   b[3];
+  uint16_t assinatura;   // configAssinaturaVib() de quando foi gravada
   uint8_t valido;
 };
 
 static void salvarBaseline() {
   BaselineEEPROM e;
   for (uint8_t i = 0; i < 3; i++) e.b[i] = baseline[i];
+  e.assinatura = configAssinaturaVib();
   e.valido = VIB_EEPROM_VALIDO;
   EEPROM.put(VIB_EEPROM_ENDERECO, e);
 }
@@ -188,6 +192,10 @@ static bool carregarBaseline() {
   BaselineEEPROM e;
   EEPROM.get(VIB_EEPROM_ENDERECO, e);
   if (e.valido != VIB_EEPROM_VALIDO) return false;
+  if (e.assinatura != configAssinaturaVib()) {   // gerada com outros parâmetros: não vale
+    Serial.println(F("Baseline da EEPROM e de outra configuracao: recalibrando"));
+    return false;
+  }
   for (uint8_t i = 0; i < 3; i++) baseline[i] = e.b[i];
   return true;
 }
@@ -207,9 +215,13 @@ static void imprimirBaseline() {
 // ---------------- API ----------------
 
 bool vibracaoInit() {
+  binMin     = (cfg.adxlFminHz * ADXL_N + ADXL_FS - 1) / ADXL_FS;
+  binMax     = cfg.adxlFmaxHz * ADXL_N / ADXL_FS;
+  binAltaMin = (cfg.adxlAltaMinHz * ADXL_N + ADXL_FS - 1) / ADXL_FS;
+
   Wire.begin();   // 100 kHz: não usar setClock(400000), o PCF8574 do LCD não suporta
 #ifdef WIRE_HAS_TIMEOUT
-  Wire.setWireTimeout(3000, true);
+  Wire.setWireTimeout(I2C_TIMEOUT_US, true);
 #endif
 
   if (carregarBaseline()) {
@@ -239,13 +251,13 @@ bool verificarADXL345(float &piso) {
 
   float soma = 0.0;
   unsigned long t0 = micros();
-  for (uint8_t j = 0; j < ADXL_JANELAS_PISO; j++) {
+  for (uint8_t j = 0; j < cfg.adxlJanelasPiso; j++) {
     if (!janelaEspectro()) return false;
-    for (int k = ADXL_BIN_MIN; k <= ADXL_BIN_MAX; k++) soma += espectro[k];
+    for (int k = binMin; k <= binMax; k++) soma += espectro[k];
   }
-  unsigned long janelaUs = (micros() - t0) / ADXL_JANELAS_PISO;
+  unsigned long janelaUs = (micros() - t0) / cfg.adxlJanelasPiso;
 
-  pisoRuido = soma / (ADXL_JANELAS_PISO * (ADXL_BIN_MAX - ADXL_BIN_MIN + 1)) * ADXL_FATOR_PISO;
+  pisoRuido = soma / (cfg.adxlJanelasPiso * (binMax - binMin + 1)) * cfg.adxlFatorPiso;
   piso = pisoRuido;
 
   Serial.print(F("ADXL345: janela "));  Serial.print(janelaUs / 1000.0, 1);
@@ -256,8 +268,8 @@ bool verificarADXL345(float &piso) {
 
 bool vibracaoLerJanela(float rpm, VibResultado &r) {
   if (!janelaEspectro()) {
-    if (falhas < VIB_FALHAS_ERRO) falhas++;
-    erroSensorVib = (falhas >= VIB_FALHAS_ERRO);
+    if (falhas < cfg.vibFalhasErro) falhas++;
+    erroSensorVib = (falhas >= cfg.vibFalhasErro);
     return false;
   }
   falhas        = 0;
@@ -266,7 +278,7 @@ bool vibracaoLerJanela(float rpm, VibResultado &r) {
   r.freqDominante = freqDominante();
   r.amp1X         = ampHarmonica(rpm / 60.0f);
   r.amp2X         = ampHarmonica(2.0f * rpm / 60.0f);
-  r.ampAlta       = maxBanda(ADXL_BIN_ALTA_MIN, ADXL_BIN_MAX);
+  r.ampAlta       = maxBanda(binAltaMin, binMax);
 
   atualizarRazao(rpm, r);
   return true;
@@ -280,13 +292,13 @@ void vibracaoCalibrar(float rpm, EstadoMotor estado, int erros, bool okVib, cons
     return;
   }
   if (ciclosEstaveis == 0) rpmMedia = rpm;
-  if (fabsf(rpm - rpmMedia) > BASELINE_TOL_RPM * rpmMedia) {
+  if (fabsf(rpm - rpmMedia) > cfg.baselineTolRpm * rpmMedia) {
     reiniciarCalibracao();
     return;
   }
   rpmMedia += (rpm - rpmMedia) * BASELINE_RPM_ALFA;
 
-  if (ciclosEstaveis < BASELINE_CICLOS_ESTAVEIS) {
+  if (ciclosEstaveis < cfg.baselineCiclos) {
     ciclosEstaveis++;
     return;
   }
@@ -294,9 +306,9 @@ void vibracaoCalibrar(float rpm, EstadoMotor estado, int erros, bool okVib, cons
   somaAmp[0] += vib.amp1X;
   somaAmp[1] += vib.amp2X;
   somaAmp[2] += vib.ampAlta;
-  if (++janelasAcumuladas < BASELINE_JANELAS) return;
+  if (++janelasAcumuladas < cfg.baselineJanelas) return;
 
-  for (uint8_t i = 0; i < 3; i++) baseline[i] = somaAmp[i] / BASELINE_JANELAS;
+  for (uint8_t i = 0; i < 3; i++) baseline[i] = somaAmp[i] / cfg.baselineJanelas;
   salvarBaseline();
   vibCalib = VIB_CALIBRADO;
   Serial.print(F("Baseline de vibracao calibrada (1X 2X ALTA, g): "));

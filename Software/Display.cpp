@@ -2,12 +2,26 @@
 #include "SensorPT100.h"     // erroSensor
 #include "SensorRPM.h"       // rpmAtual
 #include "LoggerSD.h"        // sdDisponivel
+#include "Configuracao.h"
+#include "config.h"
 
-static LiquidCrystal_I2C lcd(0x27, 16, 2);
+// Endereço vem de cfg: objeto construído em buffer estático, sem heap
+alignas(LiquidCrystal_I2C) static uint8_t lcdBuf[sizeof(LiquidCrystal_I2C)];
+static LiquidCrystal_I2C *lcdp;
+#define lcd (*lcdp)
 
 void displayInit() {
+  lcdp = new (lcdBuf, ColocarEm{}) LiquidCrystal_I2C(cfg.enderecoLcd, LCD_COLS, LCD_LINHAS);
   lcd.init();
   lcd.backlight();
+}
+
+void displayAviso(int n) {
+  char l0[LCD_COLS + 1];
+  snprintf(l0, sizeof l0, "CFG: erro %d", n);
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print(l0);
+  lcd.setCursor(0, 1); lcd.print(F("ver Serial"));
 }
 
 void displayMsg(const __FlashStringHelper* linha0, const __FlashStringHelper* linha1) {

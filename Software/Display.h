@@ -18,6 +18,9 @@ typedef enum {
 // Coluna 8 da linha 1 mostra '!' quando o cartão SD está indisponível.
 void atualizarDisplay(float temperatura, float corrente, float freqVib, EstadoVibTela estadoVib);
 
+// Aviso de configuração: "CFG: erro N" (detalhes na Serial)
+void displayAviso(int n);
+
 // Tela de 2 linhas (limpa antes de escrever)
 void displayMsg(const __FlashStringHelper* linha0, const __FlashStringHelper* linha1);
 

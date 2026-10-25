@@ -8,28 +8,40 @@
 #include "LogicaAvaliacao.h"
 #include "Display.h"
 #include "LoggerSD.h"
+#include "Configuracao.h"
+#include "config.h"
 
-// Temperatura e corrente: #defines em LogicaAvaliacao.h
-const LimitesAvaliacao limites = {
-  1740.0, 140.0, 1400.0, 2000.0,  // RPM: setpoint, tolerancia, grave min/max
-  2.0,  4.0                       // vibracao (amplitude/baseline): ruim, grave
-};
+static LimitesAvaliacao limites;   // preenchido em setup(), depois da configuração
 
 static void falha(const __FlashStringHelper* sensor) {
   displayMsg(F("FALHA SENSOR:"), sensor);
-  delay(1500);
+  delay(FALHA_MSG_MS);
 }
 
 void setup() {
   wdt_disable();   // watchdog residual de reset anterior
 
-  Serial.begin(115200);
+  Serial.begin(SERIAL_BAUD);
   Serial.println(F("=== BANCADA PREDITIVA v6.0 ==="));
 
-  andonInit();     // deixa a torre apagada até a 1ª partida
+  // Config: padrão do config.h; CONFIG.TXT do SD (opcional) sobrescreve; validação por último
+  configPadrao();
+  pinMode(cfg.pinMaxCs, OUTPUT);       // PT100 fora do SPI enquanto o SD é lido
+  digitalWrite(cfg.pinMaxCs, HIGH);
+  andonInit();                         // torre apagada até a 1ª partida (pinos padrão)
+  sdDisponivel = loggerSDMontar();
+  int avisos = sdDisponivel ? configCarregarSD(Serial) : 0;
+  avisos += configValidar(Serial);
+  pinMode(cfg.pinMaxCs, OUTPUT);       // o CS pode ter mudado
+  digitalWrite(cfg.pinMaxCs, HIGH);
+  andonInit();                         // pinos e polaridade finais
+  limites = limitesDeConfig();
+  configImprimir(Serial, "", false);
+
   if (!vibracaoInit()) Serial.println(F("ADXL345 nao respondeu no boot"));
   rpmInit();
   displayInit();
+  if (avisos) { displayAviso(avisos); delay(CFG_MSG_MS); }
   displayMsg(F("BANCADA PREDIT."), F("Iniciando..."));
   pt100Init();
 
@@ -37,10 +49,10 @@ void setup() {
   if (!verificarPT100())       falha(F("PT100"));
   if (!verificarACS712())      falha(F("ACS712"));
   if (!verificarADXL345(piso)) falha(F("ADXL345"));   // motor parado: mede o piso de ruído
-  sdDisponivel = loggerSDInit();
+  if (sdDisponivel) sdDisponivel = loggerSDInit();   // cria o CSV e anota a configuração usada
   loggerSDIniciarTempo();      // t=0 do CSV
 
-  wdt_enable(WDTO_8S);         // só depois da inicialização completa
+  wdt_enable(WDT_TIMEOUT);         // só depois da inicialização completa
 
   Serial.println(F("Temp(C)\tCorr(A)\tRPM\tErros\tMotor\tEstado\tFreq(Hz)\t1X(g)\t2X(g)\tAlta(g)\tRazao\tCalib"));
   if (sdDisponivel) Serial.println(F("Gravando em LOG.CSV no cartao SD"));
@@ -54,7 +66,7 @@ void loop() {
   wdt_reset();
 
   while (Serial.available()) {
-    if (Serial.read() == 'c') vibracaoRecalibrar();
+    if (Serial.read() == CMD_RECALIBRAR) vibracaoRecalibrar();
   }
 
   float temperatura = lerTemperatura();
@@ -65,9 +77,9 @@ void loop() {
   VibResultado vib = {};
   bool okVib = vibracaoLerJanela(rpmAtual, vib);
 
-  // Partida = corrente subiu acima de CORR_PARADO_A (reinicia a carência)
+  // Partida = corrente subiu acima de cfg.corrParadoA (reinicia a carência)
   unsigned long agora = millis();
-  bool lig = corrente >= CORR_PARADO_A;
+  bool lig = corrente >= cfg.corrParadoA;
   if (lig && !ligado) tPartida = tRpmZero = agora;
   if (rpmAtual > 0)   tRpmZero = agora;
   ligado = lig;
@@ -102,5 +114,5 @@ void loop() {
   if (okVib) gravarLeituraSD(temperatura, corrente, estado, erros, vib);
 
   // Sem janela válida o ciclo não tem ritmo próprio: evita inundar Serial
-  if (!okVib) delay(500);
+  if (!okVib) delay(LOOP_SEM_JANELA_MS);
 }

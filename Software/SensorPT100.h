@@ -5,11 +5,9 @@
 #include <Adafruit_MAX31865.h>
 
 // ----------------------------------------------------------------
-//  PT100 3 fios / MAX31865, referência 430 ohm
+//  PT100 / MAX31865 (fios, referência e CS vêm de cfg).
+//  SPI: SCK=52 MISO=50 MOSI=51
 // ----------------------------------------------------------------
-#define PIN_MAX31865_CS    10    // SPI: SCK=52 MISO=50 MOSI=51
-#define PT100_RNOM         100.0
-#define PT100_RREF         430.0
 
 // true quando a última leitura teve fault (o display mostra "ERRO")
 extern bool erroSensor;

@@ -1,18 +1,28 @@
 #include "Andon.h"
+#include "Configuracao.h"
+
+static uint8_t pinos[3] = { 255, 255, 255 };   // verde, amarelo, vermelho em uso (255 = nenhum)
 
 void andonInit() {
-  const uint8_t pinos[] = { PIN_ANDON_VERDE, PIN_ANDON_AMARELO, PIN_ANDON_VERMELHO };
+  const uint8_t novos[3] = { cfg.pinReleVerde, cfg.pinReleAmarelo, cfg.pinReleVermelho };
+  for (uint8_t i = 0; i < 3; i++) {   // solta pino antigo que não é mais usado
+    bool usado = false;
+    for (uint8_t j = 0; j < 3; j++) if (pinos[i] == novos[j]) usado = true;
+    if (pinos[i] != 255 && !usado) pinMode(pinos[i], INPUT);
+  }
   for (uint8_t i = 0; i < 3; i++) {
-    digitalWrite(pinos[i], HIGH);   // antes do OUTPUT: relé desligado desde o 1º instante
+    pinos[i] = novos[i];
+    digitalWrite(pinos[i], cfg.releAtivoEm ^ 1);   // antes do OUTPUT: relé desligado desde o 1º instante
     pinMode(pinos[i], OUTPUT);
   }
 }
 
-// Relé ativo em LOW: ligar = LOW, desligar = HIGH
+// Ligar = nível ativo, desligar = o oposto
 void setAndon(EstadoAndon estado) {
-  digitalWrite(PIN_ANDON_VERDE,    estado == ANDON_BOM     ? LOW : HIGH);
-  digitalWrite(PIN_ANDON_AMARELO,  estado == ANDON_DEFEITO ? LOW : HIGH);
-  digitalWrite(PIN_ANDON_VERMELHO, estado == ANDON_GRAVE   ? LOW : HIGH);
+  const uint8_t ativo = cfg.releAtivoEm;
+  digitalWrite(pinos[0], estado == ANDON_BOM     ? ativo : ativo ^ 1);
+  digitalWrite(pinos[1], estado == ANDON_DEFEITO ? ativo : ativo ^ 1);
+  digitalWrite(pinos[2], estado == ANDON_GRAVE   ? ativo : ativo ^ 1);
 }
 
 EstadoAndon estabilizarAndon(EstadoAndon novo) {
@@ -21,7 +31,7 @@ EstadoAndon estabilizarAndon(EstadoAndon novo) {
 
   if (novo == ANDON_APAGADO) { conf = ANDON_BOM; n = 0; return novo; }
   if (novo >= conf) { conf = novo; n = 0; }
-  else if (++n >= ANDON_CICLOS_CONFIRMACAO_MELHORA) { conf = novo; n = 0; }
+  else if (++n >= cfg.andonHisterese) { conf = novo; n = 0; }
   return conf;
 }
 
