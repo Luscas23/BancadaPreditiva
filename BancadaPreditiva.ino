@@ -38,9 +38,9 @@ void verificarPerifericos() {
 
   displayMsg(F("Verificando"), F("mais sensores..."));
 
-  // TCRT5000
-  bool okTCRT5000 = verificarTCRT5000();
-  displayStatus(F("TCRT5000"), okTCRT5000);
+  // Hall
+  bool okHall = verificarHall();
+  displayStatus(F("Sensor Hall"), okHall);
   delay(500);
 
   // SW-420: verifica cada sensor de verdade (ver SensorVibracao.h)
@@ -66,9 +66,9 @@ void verificarPerifericos() {
   delay(500);
 
   // Resumo
-  bool tudo_ok = okPT100 && okACS712 && okTCRT5000 && okSW420_1 && okSW420_2;
+  bool tudo_ok = okPT100 && okACS712 && okHall && okSW420_1 && okSW420_2;
 
-  displayFase1Resultado(tudo_ok, okPT100, okACS712, okTCRT5000, okSW420_1, okSW420_2);
+  displayFase1Resultado(tudo_ok, okPT100, okACS712, okHall, okSW420_1, okSW420_2);
 
   if (tudo_ok) setAndon(ANDON_BOM);
   else { piscarAndon(ANDON_DEFEITO, 3, 300); setAndon(ANDON_DEFEITO); }
