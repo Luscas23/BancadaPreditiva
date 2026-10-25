@@ -1,9 +1,10 @@
-// g++ -I teste -I . teste/teste_logica.cpp LogicaAvaliacao.cpp -o /tmp/teste_logica && /tmp/teste_logica
+// g++ -I teste -I . teste/teste_logica.cpp LogicaAvaliacao.cpp Configuracao.cpp -o /tmp/teste_logica && /tmp/teste_logica
 #include <assert.h>
 #include <stdio.h>
 #include "LogicaAvaliacao.h"
+#include "Configuracao.h"
 
-static const LimitesAvaliacao L = {1740, 140, 1400, 2000, 2.0, 4.0};
+static LimitesAvaliacao L;   // limites da configuração padrão (preenchido em main)
 
 // Motor em regime (partida há 10 s, RPM girando) salvo o que o teste mudar
 static EstadoAndon av(float temp, float corr, float rpm, float razao, bool erroVib,
@@ -18,6 +19,13 @@ static EstadoAndon vib(float razao, bool erroVib, int &erros) {
 
 int main() {
   int e;
+  configPadrao();
+  L = limitesDeConfig();
+  // O padrão tem de reproduzir os valores que estavam fixos no código
+  assert(L.setpointRPM == 1740 && L.toleranciaRPM == 140 && L.rpmGraveMin == 1400 && L.rpmGraveMax == 2000);
+  assert(L.vibMultRuim == 2.0f && L.vibMultGrave == 4.0f && L.tempRuimC == 80 && L.tempGraveC == 100);
+  assert(L.corrRuimA == 3.3f && L.corrGraveA == 4.0f && L.corrParadoA == 0.3f);
+  assert(L.carenciaMs == 5000 && L.rpmZeroRuimMs == 3000 && L.errosGrave == 3);
   assert(vib(0.0, false, e) == ANDON_BOM      && e == 0);  // sem baseline: razao 0
   assert(vib(2.0, false, e) == ANDON_BOM      && e == 0);  // limite do ideal
   assert(vib(2.5, false, e) == ANDON_DEFEITO  && e == 1);  // ruim

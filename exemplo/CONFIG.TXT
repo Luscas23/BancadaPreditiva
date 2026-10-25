@@ -1,0 +1,102 @@
+# Pino do rele da luz verde [pino, faixa 2..53]
+pino_rele_verde = 22
+# Pino do rele da luz amarela [pino, faixa 2..53]
+pino_rele_amarelo = 24
+# Pino do rele da luz vermelha [pino, faixa 2..53]
+pino_rele_vermelho = 26
+# TCRT5000 (so 2,3,18,19) [pino, faixa 2..53]
+pino_tcrt = 18
+# ACS712 analogico (A0=54) [pino, faixa 54..69]
+pino_acs712 = 54
+# CS do MAX31865 [pino, faixa 2..53]
+pino_cs_max31865 = 10
+# Nivel que liga o rele (LOW/HIGH) [-, faixa LOW..HIGH]
+rele_ativo_em = LOW
+# Endereco I2C do LCD [-, faixa 0x8..0x77]
+i2c_lcd = 0x27
+# Endereco I2C do ADXL345 [-, faixa 0x8..0x77]
+i2c_adxl345 = 0x53
+# Corrente nominal do motor [A, faixa 0.100..100.000]
+motor_corrente_nominal_a = 2.900
+# Tensao nominal (informativo) [V, faixa 1..1000]
+motor_tensao_v = 127
+# Potencia nominal (informativo) [W, faixa 1..60000]
+motor_potencia_w = 325
+# Reducao motor -> eixo do TCRT [-, faixa 1..255]
+motor_reducao = 26
+# RPM nominal (centro da faixa ideal) [RPM, faixa 1..20000]
+motor_rpm_nominal = 1740
+# Faixa ideal = nominal +- isto [RPM, faixa 1..20000]
+rpm_tolerancia = 140
+# Abaixo disso: grave [RPM, faixa 1..20000]
+rpm_grave_min = 1400
+# Acima disso: grave [RPM, faixa 1..20000]
+rpm_grave_max = 2000
+# Acima disso: ruim [A, faixa 0.010..100.000]
+corr_ruim_a = 3.300
+# Acima disso: grave [A, faixa 0.010..100.000]
+corr_grave_a = 4.000
+# Abaixo disso: motor parado [A, faixa 0.010..100.000]
+corr_parado_a = 0.300
+# Acima disso: ruim [C, faixa 0.000..300.000]
+temp_ruim_c = 80.000
+# Acima disso: grave [C, faixa 0.000..300.000]
+temp_grave_c = 100.000
+# Razao amplitude/baseline: ruim [x, faixa 0.100..100.000]
+vib_mult_ruim = 2.000
+# Razao amplitude/baseline: grave [x, faixa 0.100..100.000]
+vib_mult_grave = 4.000
+# Erros somados que viram GRAVE [-, faixa 1..10]
+erros_para_grave = 3
+# Apos a partida corrente/RPM nao contam [ms, faixa 0..60000]
+carencia_partida_ms = 5000
+# Corrente com RPM 0 por mais: ruim [ms, faixa 0..60000]
+rpm_zero_ruim_ms = 3000
+# Sem pulso por mais: RPM = 0 [ms, faixa 100..60000]
+rpm_timeout_sem_pulso_ms = 2000
+# Ciclos melhores para o Andon melhorar [ciclo, faixa 1..100]
+andon_histerese_ciclos = 3
+# Pulso mais proximo que isso e ruido [us, faixa 1000..10000000]
+tcrt_pulso_min_us = 200000
+# Marcas refletivas por volta [-, faixa 1..16]
+tcrt_marcas_por_volta = 1
+# Sensibilidade do ACS712 [V/A, faixa 0.010..1.000]
+acs_sensibilidade_v_a = 0.185
+# Alimentacao / referencia do ADC [V, faixa 1.000..6.000]
+acs_vcc_v = 5.000
+# Amostras por leitura (~5 ciclos da rede) [-, faixa 10..2000]
+acs_amostras = 400
+# Pausa entre amostras [us, faixa 0..10000]
+acs_intervalo_us = 100
+# Abaixo disso a corrente vale 0 [A, faixa 0.000..1.000]
+acs_piso_zero_a = 0.050
+# Sanidade do boot: ADC minimo [-, faixa 0..1023]
+acs_adc_min = 350
+# Sanidade do boot: ADC maximo [-, faixa 0..1023]
+acs_adc_max = 680
+# Fios do PT100 [-, faixa 2..4]
+pt100_fios = 3
+# Resistor de referencia do MAX31865 [ohm, faixa 100.000..10000.000]
+pt100_rref_ohm = 430.000
+# Resistencia nominal do PT100 [ohm, faixa 10.000..1000.000]
+pt100_rnom_ohm = 100.000
+# Inicio da banda de analise [Hz, faixa 1..100]
+adxl_fmin_hz = 6
+# Fim da banda de analise [Hz, faixa 10..250]
+adxl_fmax_hz = 180
+# Inicio da banda ALTA [Hz, faixa 5..250]
+adxl_alta_min_hz = 120
+# Tolerancia em bins de 1X/2X [bin, faixa 0..8]
+adxl_banda_bins = 2
+# Janelas para medir o piso de ruido [-, faixa 1..64]
+adxl_janelas_piso = 8
+# Multiplicador do piso de ruido [x, faixa 0.100..100.000]
+adxl_fator_piso = 5.000
+# Janelas invalidas seguidas = erro [-, faixa 1..50]
+vib_falhas_erro = 3
+# Janelas acumuladas na baseline [-, faixa 1..64]
+baseline_janelas = 8
+# Ciclos estaveis antes de acumular [ciclo, faixa 0..250]
+baseline_ciclos_estaveis = 25
+# Variacao maxima do RPM ao calibrar [frac, faixa 0.001..1.000]
+baseline_tol_rpm = 0.050
