@@ -3,40 +3,28 @@
 
 #include <Arduino.h>
 
-// ----------------------------------------------------------------
-//  ANDON — Torre de sinalização (Verde / Amarelo / Vermelho)
-// ----------------------------------------------------------------
+// Torre de sinalização (Verde / Amarelo / Vermelho). Relé ativo em LOW.
 #define PIN_ANDON_VERDE    22
 #define PIN_ANDON_AMARELO  24
 #define PIN_ANDON_VERMELHO 26
 
+// APAGADO fica por último: a histerese só compara BOM..GRAVE
 typedef enum {
   ANDON_BOM,
   ANDON_DEFEITO,
-  ANDON_GRAVE
+  ANDON_GRAVE,
+  ANDON_APAGADO     // motor parado: nenhum relé ligado
 } EstadoAndon;
 
-// Configura os pinos da torre como saída (chamar uma vez no setup)
+// Relés desligados antes de virar saída (não estalam no boot)
 void andonInit();
-
-// Acende o LED correspondente ao estado, apaga os demais
 void setAndon(EstadoAndon estado);
 
-// Pisca a torre em um estado "vezes" vezes, intercalando com ANDON_BOM
-void piscarAndon(EstadoAndon estado, int vezes, int ms);
-
-// Histerese assimétrica: piora de estado é aplicada na hora (não faz
-// sentido atrasar um alerta real), melhora só é confirmada depois de
-// ANDON_CICLOS_CONFIRMACAO_MELHORA ciclos seguidos melhores que o
-// estado atual. Evita a torre "piscar" entre BOM/DEFEITO quando uma
-// leitura fica bem em cima do limite, sem atrasar a reação a uma
-// piora de verdade. Mantém estado interno (static) — chamar uma vez
-// por ciclo do loop(), sempre com o resultado de avaliarEstado().
+// Histerese: piora na hora, melhora só após N ciclos seguidos melhores.
+// APAGADO zera a histerese. Chamar uma vez por ciclo do loop().
 #define ANDON_CICLOS_CONFIRMACAO_MELHORA 3
 EstadoAndon estabilizarAndon(EstadoAndon novoEstado);
 
-// Único lugar que sabe o nome de cada EstadoAndon. Serial e SD
-// chamam esta função em vez de terem cada um o próprio switch.
 const __FlashStringHelper* andonParaTexto(EstadoAndon estado);
 
 #endif

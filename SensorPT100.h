@@ -5,25 +5,21 @@
 #include <Adafruit_MAX31865.h>
 
 // ----------------------------------------------------------------
-//  PT100 / MAX31865
+//  PT100 3 fios / MAX31865, referência 430 ohm
 // ----------------------------------------------------------------
-#define PIN_MAX31865_CS    10    // PT100 CS (SPI: SCK=52 MISO=50 MOSI=51)
+#define PIN_MAX31865_CS    10    // SPI: SCK=52 MISO=50 MOSI=51
 #define PT100_RNOM         100.0
 #define PT100_RREF         430.0
 
-// true quando a última leitura teve fault (usado pelo display para
-// mostrar "ERRO" em vez do valor de temperatura)
+// true quando a última leitura teve fault (o display mostra "ERRO")
 extern bool erroSensor;
 
-// Inicializa o driver MAX31865 (chamar uma vez no setup, via pt100.begin)
 void pt100Init();
 
-// Leitura de temperatura com filtro passa-baixa e tratamento de
-// fault. Retorna -999.0 e seta erroSensor=true em caso de fault
-// (fault é limpo internamente via pt100.clearFault()).
+// Temperatura em °C. Com fault: erroSensor = true e o retorno (NAN) não vale.
 float lerTemperatura();
 
-// Verificação de presença/sanidade do sensor na Fase 1
+// Sanidade do sensor no boot
 bool verificarPT100();
 
 #endif

@@ -1,23 +1,16 @@
 #include <Arduino.h>
 #include <SD.h>
 #include "LoggerSD.h"
-#include "SensorRPM.h"   // rpmAtual, estadoMotor, EstadoMotor
+#include "SensorRPM.h"   // rpmAtual, estadoMotor
 
 static const char    NOME_ARQUIVO_LOG[] = "LOG.CSV";
 static unsigned long inicioLeituraMs    = 0;
 
 bool sdDisponivel = false;
 
-// ================================================================
-//  GRAVAÇÃO EM CARTÃO SD
-//  Tratada como recurso secundário: se o cartão falhar ou for
-//  removido, a bancada continua monitorando o motor normalmente.
-//  Cada chamada abre, escreve e fecha o arquivo (flush imediato) —
-//  protege contra perda de dados se a bancada perder energia.
-// ================================================================
+// Cartão é recurso secundário. Cada gravação abre, escreve e fecha (flush
+// imediato): protege contra perda de dados se faltar energia.
 bool loggerSDInit() {
-  pinMode(53, OUTPUT);  // Mantém o SS de hardware do Mega como saída
-
   if (!SD.begin(PIN_SD_CS)) {
     return false;
   }
@@ -25,12 +18,8 @@ bool loggerSDInit() {
   if (!SD.exists(NOME_ARQUIVO_LOG)) {
     File arquivo = SD.open(NOME_ARQUIVO_LOG, FILE_WRITE);
     if (!arquivo) return false;
-    // Comentário (#) antes do cabeçalho: documenta o sentinela de
-    // falha do PT100 sem mexer na estrutura de colunas. Ferramentas
-    // que ignoram linhas iniciadas com # (ex.: pandas.read_csv(...,
-    // comment='#')) leem normal; um humano abrindo no Excel só vê
-    // uma linha de nota antes do cabeçalho de verdade.
-    arquivo.println(F("# temp_C = -999.00 indica falha do sensor PT100 (fault do MAX31865) - nao e uma leitura real"));
+    // Linha '#': nota ignorada por pandas (comment='#')
+    arquivo.println(F("# temp_C = nan indica falha do sensor PT100 (fault do MAX31865) - nao e uma leitura real"));
     arquivo.println(F("tempo_s,temp_C,corrente_A,rpm,erros,estado_motor,estado_andon,freq_vib_hz,vib_1x_g,vib_2x_g,vib_alta_g,vib_razao,vib_calib"));
     arquivo.close();
   }
@@ -41,29 +30,33 @@ void loggerSDIniciarTempo() {
   inicioLeituraMs = millis();
 }
 
+void imprimirLinha(Print &p, char sep, float temperatura, float corrente, EstadoAndon estado,
+                   int erros, const VibResultado &vib) {
+  p.print(temperatura, 2);                p.print(sep);
+  p.print(corrente, 3);                   p.print(sep);
+  p.print((int)rpmAtual);                 p.print(sep);
+  p.print(erros);                         p.print(sep);
+  p.print(motorParaTexto(estadoMotor));   p.print(sep);
+  p.print(andonParaTexto(estado));        p.print(sep);
+  p.print(vib.freqDominante, 1);          p.print(sep);
+  p.print(vib.amp1X, 4);                  p.print(sep);
+  p.print(vib.amp2X, 4);                  p.print(sep);
+  p.print(vib.ampAlta, 4);                p.print(sep);
+  p.print(vibRazao, 2);                   p.print(sep);
+  p.println((int)vibCalib);
+}
+
 void gravarLeituraSD(float temperatura, float corrente, EstadoAndon estado, int erros,
-                     const VibResultado &vib, float razao) {
-  if (!sdDisponivel) return;  // recurso desabilitado — não tenta nem trava o ciclo
+                     const VibResultado &vib) {
+  if (!sdDisponivel) return;
 
   File arquivo = SD.open(NOME_ARQUIVO_LOG, FILE_WRITE);
   if (!arquivo) {
-    sdDisponivel = false;  // cartão removido/corrompido — desliga gravação, bancada continua
+    sdDisponivel = false;  // cartão removido/corrompido: o LCD passa a mostrar '!'
     return;
   }
 
-  arquivo.print((millis() - inicioLeituraMs) / 1000.0, 1); arquivo.print(F(","));
-  arquivo.print(temperatura, 2);                            arquivo.print(F(","));
-  arquivo.print(corrente, 3);                               arquivo.print(F(","));
-  arquivo.print((int)rpmAtual);                             arquivo.print(F(","));
-  arquivo.print(erros);                                     arquivo.print(F(","));
-  arquivo.print(motorParaTexto(estadoMotor)); arquivo.print(F(","));
-  arquivo.print(andonParaTexto(estado));                    arquivo.print(F(","));
-  arquivo.print(vib.freqDominante, 1);                      arquivo.print(F(","));
-  arquivo.print(vib.amp1X, 4);                              arquivo.print(F(","));
-  arquivo.print(vib.amp2X, 4);                              arquivo.print(F(","));
-  arquivo.print(vib.ampAlta, 4);                            arquivo.print(F(","));
-  arquivo.print(razao, 2);                                  arquivo.print(F(","));
-  arquivo.println((int)vibCalib);
-
-  arquivo.close();  // fecha = grava (flush) no cartão imediatamente
+  arquivo.print((millis() - inicioLeituraMs) / 1000.0, 1); arquivo.print(',');
+  imprimirLinha(arquivo, ',', temperatura, corrente, estado, erros, vib);
+  arquivo.close();
 }

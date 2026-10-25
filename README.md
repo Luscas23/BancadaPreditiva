@@ -13,9 +13,8 @@ Bibliotecas: `arduinoFFT` 2.x, `LiquidCrystal_I2C`, `Adafruit_MAX31865`,
 
 Reestruturando o projeto de um único `.ino` monolítico para módulos
 por responsabilidade, sem alterar o comportamento da bancada.
-Progresso: **Passo 9/10 concluído** (falta o Passo 10, testes da lógica
-pura). Veja `CHANGELOG.md` para o
-histórico completo de cada passo.
+Progresso: **Passo 10/10 concluído** (testes da lógica pura em `teste/`).
+Veja `CHANGELOG.md` para o estado atual.
 
 ## Estrutura atual (abas do Arduino IDE)
 
@@ -24,7 +23,7 @@ BancadaPreditiva/
 ├── BancadaPreditiva.ino   — orquestra setup()/loop() e as fases 1-3
 ├── Andon.h / .cpp         — torre de sinalização
 ├── SensorCorrente.h / .cpp — leitura RMS do ACS712
-├── SensorPT100.h / .cpp   — leitura + média móvel + fault do PT100
+├── SensorPT100.h / .cpp   — leitura + fault do PT100 (3 fios)
 ├── SensorVibracao.h / .cpp — ADXL345 (I2C) + FFT por janela + baseline na EEPROM
 ├── SensorRPM.h / .cpp     — ISR TCRT5000 + cálculo de RPM + EstadoMotor
 ├── LogicaAvaliacao.h / .cpp — avaliarEstado(), puro C++
@@ -43,7 +42,3 @@ BancadaPreditiva/
 3. Grave na bancada real e confirme que o comportamento é idêntico
    ao anterior (torre Andon, LCD, RPM, gravação no SD).
 4. `git add -A && git commit -m "Passo N: ..."`.
-
-## Próximos passos
-
-Veja a seção "Próximos passos" no final do `CHANGELOG.md`.

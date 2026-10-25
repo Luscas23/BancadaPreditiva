@@ -1,59 +1,34 @@
-#include <math.h>   // INFINITY
 #include "LogicaAvaliacao.h"
 
-// ----------------------------------------------------------------
-//  Modelo de decisão — bandas de tolerância aninhadas (IDEAL / RUIM /
-//  PERIGOSO), no padrão pedido na "Programação da Sinaleira":
-//    IDEAL    -> dentro de setpoint ± tolerância
-//    RUIM     -> fora do ideal, mas ainda dentro do limite grave
-//    PERIGOSO -> além do limite grave
-// ----------------------------------------------------------------
-
-// Classifica um valor contra uma faixa setpoint±tolerancia e um
-// limite grave de um só lado (lo ou hi; o lado sem limite grave
-// passa -INFINITY/INFINITY) e soma em 'ruim'/'perigoso' conforme o
-// caso. Reaproveitado para temperatura, corrente e RPM.
-static void faixa(float v, float setpoint, float tolerancia,
-                   float limiteGraveLo, float limiteGraveHi,
-                   int &ruim, int &perigoso) {
-  float min = setpoint - tolerancia;
-  float max = setpoint + tolerancia;
-  if (v >= min && v <= max) return;  // ideal
-  if (v >= limiteGraveLo && v <= limiteGraveHi) ruim++;
-  else perigoso++;
-}
-
-EstadoAndon avaliarEstado(const LeituraAtual& leitura, const LimitesAvaliacao& limites, int &erros) {
+EstadoAndon avaliarEstado(const LeituraAtual& l, const LimitesAvaliacao& lim, int &erros) {
   int ruim = 0, perigoso = 0;
+  erros = 0;
 
-  // Temperatura: falha do sensor é checada explicitamente ANTES de
-  // comparar contra as bandas ('temperatura' chega como -999.0 nesse
-  // caso). Sem limite grave inferior.
-  if (leitura.erroSensorTemp) {
-    ruim++;
-  } else {
-    faixa(leitura.temperatura, limites.setpointTemp, limites.toleranciaTemp,
-          -INFINITY, limites.tempGrave, ruim, perigoso);
+  // Parado = corrente baixa (um TCRT solto não pode parecer motor parado)
+  if (l.corrente < CORR_PARADO_A) return ANDON_APAGADO;
+
+  if (l.erroSensorTemp)                  ruim++;
+  else if (l.temperatura > TEMP_GRAVE_C) perigoso++;
+  else if (l.temperatura > TEMP_RUIM_C)  ruim++;
+
+  // Carência de partida: pico de corrente e RPM subindo não são defeito
+  if (l.msDesdePartida >= CARENCIA_PARTIDA_MS) {
+    if (l.corrente > CORR_GRAVE_A)      perigoso++;
+    else if (l.corrente > CORR_RUIM_A)  ruim++;
+
+    if (l.rpm == 0) {
+      if (l.msRpmZero > RPM_ZERO_RUIM_MS) ruim++;   // TCRT solto ou rotor travado
+    } else if (l.rpm < lim.rpmGraveMin || l.rpm > lim.rpmGraveMax) {
+      perigoso++;
+    } else if (l.rpm < lim.setpointRPM - lim.toleranciaRPM ||
+               l.rpm > lim.setpointRPM + lim.toleranciaRPM) {
+      ruim++;
+    }
   }
 
-  // Corrente: sem limite grave inferior.
-  faixa(leitura.corrente, limites.setpointCorr, limites.toleranciaCorr,
-        -INFINITY, limites.corrGrave, ruim, perigoso);
-
-  // RPM: só avalia se o motor já girou; antes disso não é erro.
-  if (leitura.motorJaGirou && leitura.rpm > 0) {
-    faixa(leitura.rpm, limites.setpointRPM, limites.toleranciaRPM,
-          limites.rpmGraveMin, limites.rpmGraveMax, ruim, perigoso);
-  }
-
-  // Vibração: razão contra a baseline (ideal até vibMultRuim, ruim até
-  // vibMultGrave). Sem baseline não pontua.
-  if (leitura.erroSensorVib) {
-    ruim++;
-  } else if (leitura.vibCalibrado) {
-    faixa(leitura.vibRazao, 1.0, limites.vibMultRuim - 1.0,
-          -INFINITY, limites.vibMultGrave, ruim, perigoso);
-  }
+  if (l.erroSensorVib)                    ruim++;
+  else if (l.vibRazao > lim.vibMultGrave) perigoso++;
+  else if (l.vibRazao > lim.vibMultRuim)  ruim++;
 
   erros = ruim + perigoso;
 

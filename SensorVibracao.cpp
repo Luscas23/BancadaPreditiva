@@ -1,6 +1,5 @@
 #include <Wire.h>
 #include <EEPROM.h>
-#include <avr/wdt.h>
 #include <arduinoFFT.h>
 #include "SensorVibracao.h"
 
@@ -16,8 +15,6 @@ static ArduinoFFT<float> fft(vReal, vImag, ADXL_N, ADXL_FS);
 
 static float        pisoRuido = 0.0;
 static float        baseline[3];
-static VibResultado ultimaJanela;
-static bool         ultimaJanelaOk = false;
 static uint8_t      falhas = 0;
 static float        histRazao[3];
 static uint8_t      idxHist = 0;
@@ -93,7 +90,6 @@ static bool coletarJanela() {
     raw[0][i] = s[0];
     raw[1][i] = s[1];
     raw[2][i] = s[2];
-    wdt_reset();
   }
   return true;
 }
@@ -179,28 +175,19 @@ static void atualizarRazao(float rpm, const VibResultado &r) {
 struct BaselineEEPROM {
   float   b[3];
   uint8_t valido;
-  uint8_t soma;
 };
-
-static uint8_t somaBytes(const BaselineEEPROM &e) {
-  const uint8_t *p = (const uint8_t *)&e;
-  uint8_t s = 0;
-  for (uint8_t i = 0; i < offsetof(BaselineEEPROM, soma); i++) s += p[i];
-  return s;
-}
 
 static void salvarBaseline() {
   BaselineEEPROM e;
   for (uint8_t i = 0; i < 3; i++) e.b[i] = baseline[i];
   e.valido = VIB_EEPROM_VALIDO;
-  e.soma   = somaBytes(e);
   EEPROM.put(VIB_EEPROM_ENDERECO, e);
 }
 
 static bool carregarBaseline() {
   BaselineEEPROM e;
   EEPROM.get(VIB_EEPROM_ENDERECO, e);
-  if (e.valido != VIB_EEPROM_VALIDO || e.soma != somaBytes(e)) return false;
+  if (e.valido != VIB_EEPROM_VALIDO) return false;
   for (uint8_t i = 0; i < 3; i++) baseline[i] = e.b[i];
   return true;
 }
@@ -270,28 +257,25 @@ bool verificarADXL345(float &piso) {
 bool vibracaoLerJanela(float rpm, VibResultado &r) {
   if (!janelaEspectro()) {
     if (falhas < VIB_FALHAS_ERRO) falhas++;
-    erroSensorVib  = (falhas >= VIB_FALHAS_ERRO);
-    ultimaJanelaOk = false;
+    erroSensorVib = (falhas >= VIB_FALHAS_ERRO);
     return false;
   }
-  falhas         = 0;
-  erroSensorVib  = false;
-  ultimaJanelaOk = true;
+  falhas        = 0;
+  erroSensorVib = false;
 
   r.freqDominante = freqDominante();
   r.amp1X         = ampHarmonica(rpm / 60.0f);
   r.amp2X         = ampHarmonica(2.0f * rpm / 60.0f);
   r.ampAlta       = maxBanda(ADXL_BIN_ALTA_MIN, ADXL_BIN_MAX);
 
-  ultimaJanela = r;
   atualizarRazao(rpm, r);
   return true;
 }
 
-void vibracaoCalibrar(float rpm, EstadoMotor estado, int erros) {
+void vibracaoCalibrar(float rpm, EstadoMotor estado, int erros, bool okVib, const VibResultado &vib) {
   if (vibCalib != VIB_CALIBRANDO) return;
 
-  if (!ultimaJanelaOk || estado != MOTOR_OPERANDO || erros != 0) {
+  if (!okVib || estado != MOTOR_OPERANDO || erros != 0) {
     reiniciarCalibracao();
     return;
   }
@@ -307,9 +291,9 @@ void vibracaoCalibrar(float rpm, EstadoMotor estado, int erros) {
     return;
   }
 
-  somaAmp[0] += ultimaJanela.amp1X;
-  somaAmp[1] += ultimaJanela.amp2X;
-  somaAmp[2] += ultimaJanela.ampAlta;
+  somaAmp[0] += vib.amp1X;
+  somaAmp[1] += vib.amp2X;
+  somaAmp[2] += vib.ampAlta;
   if (++janelasAcumuladas < BASELINE_JANELAS) return;
 
   for (uint8_t i = 0; i < 3; i++) baseline[i] = somaAmp[i] / BASELINE_JANELAS;

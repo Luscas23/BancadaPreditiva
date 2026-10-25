@@ -28,13 +28,7 @@
 #define ADXL_FS                400    // taxa de amostragem (Hz)
 #define ADXL_N                 128    // amostras por janela (potência de 2)
 
-#if   ADXL_FS == 400
-  #define ADXL_BW_RATE         0x0C
-#elif ADXL_FS == 800
-  #define ADXL_BW_RATE         0x0D   // exige I2C acima de 100 kHz
-#else
-  #error "ADXL_FS suportado: 400 ou 800"
-#endif
+#define ADXL_BW_RATE           0x0C   // 400 Hz
 
 #define ADXL_G_POR_LSB         0.0039f        // full-res: ~3,9 mg/LSB
 #define ADXL_ESCALA_FFT        (2.0f / ADXL_N) // magnitude da FFT -> amplitude de pico
@@ -60,10 +54,10 @@
 #define BASELINE_TOL_RPM           0.05f   // fração da média móvel do RPM
 #define BASELINE_RPM_ALFA          0.2f
 
-// Endereço e flag de validade da baseline na EEPROM. A flag muda se
-// ADXL_FS/ADXL_N mudarem, invalidando uma baseline de outra configuração.
+// Baseline na EEPROM: byte mágico fixo (EEPROM virgem lê 0xFF).
+// Mudou ADXL_FS ou ADXL_N? Recalibre com 'c'.
 #define VIB_EEPROM_ENDERECO    0
-#define VIB_EEPROM_VALIDO      ((uint8_t)(0xA0 + ADXL_FS / 100 + ADXL_N / 64))
+#define VIB_EEPROM_VALIDO      0xA5
 
 struct VibResultado {
   float freqDominante;   // Hz, maior pico entre ADXL_FMIN_HZ e ADXL_FMAX_HZ
@@ -99,8 +93,8 @@ bool verificarADXL345(float &pisoRuido);
 bool vibracaoLerJanela(float rpm, VibResultado &r);
 
 // Acumula a baseline quando o motor está estável. Chamar uma vez por
-// ciclo, depois de avaliarEstado(), com o 'erros' desse ciclo.
-void vibracaoCalibrar(float rpm, EstadoMotor estado, int erros);
+// ciclo, depois de avaliarEstado(), com o 'erros' e a janela desse ciclo.
+void vibracaoCalibrar(float rpm, EstadoMotor estado, int erros, bool okVib, const VibResultado &vib);
 
 // Apaga a baseline da EEPROM e volta a calibrar.
 void vibracaoRecalibrar();
