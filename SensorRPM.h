@@ -4,9 +4,9 @@
 #include <Arduino.h>
 
 // ----------------------------------------------------------------
-//  RPM — Sensor Hall KY-003
+//  RPM — Sensor TCRT5000
 // ----------------------------------------------------------------
-#define PIN_HALL           18    // RPM Hall KY-003   (INT5)
+#define PIN_TCRT5000       18    // RPM TCRT5000      (INT5)
 #define PULSOS_POR_VOLTA   1
 #define INTERVALO_RPM_MS   1000
 
@@ -22,12 +22,14 @@ extern float       rpmAtual;
 extern EstadoMotor estadoMotor;
 extern bool        motorJaGirou;
 
-// Configura o pino do Hall (INPUT_PULLUP) e liga a interrupção RISING
+// Configura o pino do TCRT5000 (INPUT), detecta o nível de repouso e liga
+// a interrupção na borda que SAI do repouso (RISING se repouso=LOW,
+// FALLING se repouso=HIGH)
 void rpmInit();
 
-// Verificação de presença/sanidade na Fase 1 — com INPUT_PULLUP o
-// repouso é LOW (HIGH = sensor ausente ou ímã passando no instante)
-bool verificarHall();
+// Verificação de presença/sanidade na Fase 1 — o sinal precisa estar
+// estável no nível de repouso detectado em rpmInit() durante várias leituras
+bool verificarTCRT5000();
 
 // Recalcula o RPM a cada INTERVALO_RPM_MS e atualiza EstadoMotor.
 // setpointRPM/toleranciaRPM continuam sendo setpoints de negócio

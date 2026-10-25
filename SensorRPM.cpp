@@ -9,19 +9,38 @@ float       rpmAtual    = 0.0;
 EstadoMotor estadoMotor  = MOTOR_PARADO;
 bool        motorJaGirou = false;
 
-static void ISR_hall() {
+// Nível de repouso do TCRT5000 (lido uma vez em rpmInit)
+static int tcrt5000_repouso = LOW;
+
+static void ISR_tcrt5000() {
   pulsos++;
 }
 
 void rpmInit() {
-  pinMode(PIN_HALL, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(PIN_HALL), ISR_hall, RISING);
+  pinMode(PIN_TCRT5000, INPUT);
+
+  // Mesma técnica do SW-420: detecta o repouso e dispara na borda que
+  // SAI dele (borda única, nunca CHANGE — evita contagem dupla).
+  tcrt5000_repouso = digitalRead(PIN_TCRT5000);
+  int modoDisparo = (tcrt5000_repouso == LOW) ? RISING : FALLING;
+
+  attachInterrupt(digitalPinToInterrupt(PIN_TCRT5000), ISR_tcrt5000, modoDisparo);
   ultimoCalculoRPM = millis();
 }
 
-bool verificarHall() {
-  // Corrigido: com INPUT_PULLUP, repouso é LOW (HIGH = ausente ou ímã passando)
-  return (digitalRead(PIN_HALL) == LOW);
+#define TCRT_AMOSTRAS_VERIFICACAO     10
+#define TCRT_INTERVALO_VERIFICACAO_US 200
+
+static bool nivelRepousoEstavel(uint8_t pino, int nivelEsperado) {
+  for (int i = 0; i < TCRT_AMOSTRAS_VERIFICACAO; i++) {
+    if (digitalRead(pino) != nivelEsperado) return false;
+    delayMicroseconds(TCRT_INTERVALO_VERIFICACAO_US);
+  }
+  return true;
+}
+
+bool verificarTCRT5000() {
+  return nivelRepousoEstavel(PIN_TCRT5000, tcrt5000_repouso);
 }
 
 void calcularRPM(float setpointRPM, float toleranciaRPM) {
