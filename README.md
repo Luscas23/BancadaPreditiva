@@ -3,7 +3,7 @@
 TCC — Engenharia Mecatrônica | Lucas Altruda Salce
 
 Arduino Mega 2560 + LCD 16x2 I2C + PT100/MAX31865 + ACS712-5A +
-sensor óptico TCRT5000 (RPM, pino 18) + acelerômetro ADXL345 (vibração,
+sensor óptico TCRT5000 no eixo do motor, 1 marca refletiva, RPM medido pelo período entre pulsos (pino 18) + acelerômetro ADXL345 (vibração,
 I2C 0x53, SDA=20/SCL=21) + torre Andon + cartão SD.
 
 Bibliotecas: `arduinoFFT` 2.x, `LiquidCrystal_I2C`, `Adafruit_MAX31865`,
@@ -57,14 +57,15 @@ por 2 s. A configuração usada vai à Serial e, a cada boot, ao `LOG.CSV` como
 linhas `#` (use `comment='#'` no pandas).
 
 - **Exige recompilar:** `ADXL_FS`, `ADXL_N`, `ADXL_BW_RATE`, CS do SD, baud, nome
-  dos arquivos, timeout do watchdog, tamanho do LCD, tempos de mensagem.
+  dos arquivos, timeout do watchdog, tamanho do LCD, tempos de mensagem, `RPM_AMOSTRAS` (média móvel do RPM, potência de 2, padrão 4).
 - **Não exige:** tudo em `docs/CONFIG.md` (chave, unidade, padrão, intervalo,
   descrição e se afeta a baseline da vibração).
 - Trocou motor? Informe também `rpm_*` e `corr_*`: os limites são explícitos,
   não derivados do nominal. Mudou RPM nominal, redução ou bandas da FFT: a
   baseline da EEPROM deixa de valer (assinatura) e é recalibrada sozinha.
 - `exemplo/CONFIG.TXT` e `docs/CONFIG.md` saem da tabela:
-  `g++ -I teste -I . teste/teste_config.cpp Configuracao.cpp LogicaAvaliacao.cpp -o /tmp/tc && /tmp/tc --gerar`
+  `g++ -I teste -I Software teste/teste_config.cpp Software/Configuracao.cpp Software/LogicaAvaliacao.cpp -o /tmp/tc && /tmp/tc --gerar`
+- Teste do cálculo de RPM: `g++ -I teste -I Software teste/teste_rpm.cpp -o /tmp/teste_rpm && /tmp/teste_rpm`
 
 ## Como validar cada passo
 

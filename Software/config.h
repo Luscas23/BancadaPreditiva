@@ -27,7 +27,7 @@
 #define PAD_MOTOR_TENSAO_V      127    // tensão nominal (V), informativo
 #define PAD_MOTOR_POTENCIA_W    325    // potência nominal (W), informativo
 #define PAD_MOTOR_RPM           1740   // RPM nominal = setpoint da faixa ideal
-#define PAD_MOTOR_REDUCAO       26     // redução entre motor e eixo do TCRT
+#define PAD_MOTOR_REDUCAO       1      // redução motor -> TCRT (1 = TCRT no eixo do motor)
 
 // ===== LIMITES [exec] =====
 #define PAD_RPM_TOLERANCIA      140    // ideal = nominal +- isto (RPM)
@@ -45,7 +45,7 @@
 // ===== TEMPOS [exec] =====
 #define PAD_CARENCIA_PARTIDA_MS 5000   // após a partida, corrente e RPM não contam
 #define PAD_RPM_ZERO_RUIM_MS    3000   // corrente com RPM 0 por mais que isso = ruim
-#define PAD_RPM_TIMEOUT_MS      2000   // sem pulso por mais que isso: RPM = 0
+#define PAD_RPM_TIMEOUT_MS      500    // sem pulso por mais que isso: RPM = 0 (~15 voltas a 1740 RPM)
 #define PAD_ANDON_HISTERESE     3      // ciclos melhores seguidos para melhorar o Andon
 #define LOOP_SEM_JANELA_MS      500    // pausa do loop sem janela de vibração válida
 #define FALHA_MSG_MS            1500   // tempo da mensagem de falha de sensor no LCD
@@ -53,7 +53,8 @@
 #define WDT_TIMEOUT             WDTO_8S // timeout do watchdog
 
 // ===== TCRT [exec] =====
-#define PAD_TCRT_PULSO_MIN_US   200000 // pulso mais próximo que isso é ruído (us)
+#define PAD_TCRT_PULSO_MIN_US   10000  // pulso mais próximo que isso é ruído (us); aceita até ~6000 RPM
+#define RPM_AMOSTRAS            4      // períodos na média móvel do RPM (potência de 2; exige recompilar)
 #define PAD_TCRT_MARCAS         1      // marcas refletivas por volta do eixo
 
 // ===== ACS712 =====

@@ -98,13 +98,16 @@ int main(int argc, char **) {
   assert(configValidar(o) == 1 && cfg.adxlFmaxHz == 180);
   { Saida a; zerar(); cfg.adxlFminHz = 40;                                 // 1X (29 Hz) abaixo da banda
     assert(configValidar(a) >= 1 && a.s.find("ATENCAO") != std::string::npos); }
-  { Saida a; zerar(); cfg.pulsoMinUs = 600000;                             // período 897 ms < 2x o mínimo
-    assert(configValidar(a) == 1 && a.s.find("TCRT") != std::string::npos && cfg.pulsoMinUs == 600000); }
+  { Saida a; zerar(); cfg.pulsoMinUs = 20000;                              // período 34,5 ms < 2x o mínimo
+    assert(configValidar(a) == 1 && a.s.find("TCRT") != std::string::npos && cfg.pulsoMinUs == 20000); }
+  { Saida a; zerar(); cfg.rpmTimeoutMs = 150;                              // timeout < 5 períodos (172 ms)
+    assert(configValidar(a) == 1 && a.s.find("timeout") != std::string::npos); }
 
   // --- Outro motor só por configuração: 3600 RPM, 5 A
   zerar();
   const char *motor = "motor_rpm_nominal = 3600\nrpm_tolerancia = 280\nrpm_grave_min = 2800\n"
-                      "rpm_grave_max = 4000\nmotor_corrente_nominal_a = 5\ncorr_ruim_a = 5.7\ncorr_grave_a = 6.9\n";
+                      "rpm_grave_max = 4000\nmotor_corrente_nominal_a = 5\ncorr_ruim_a = 5.7\ncorr_grave_a = 6.9\n"
+                      "tcrt_pulso_min_us = 5000\n";   // 3600 RPM: período 16,7 ms pede filtro menor
   assert(texto(motor, o) == 0 && configValidar(o) == 0);
   LimitesAvaliacao L = limitesDeConfig();
   assert(L.setpointRPM == 3600 && L.rpmGraveMin == 2800 && L.corrGraveA == 6.9f);

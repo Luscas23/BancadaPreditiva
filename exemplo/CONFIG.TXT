@@ -22,8 +22,8 @@ motor_corrente_nominal_a = 2.900
 motor_tensao_v = 127
 # Potencia nominal (informativo) [W, faixa 1..60000]
 motor_potencia_w = 325
-# Reducao motor -> eixo do TCRT [-, faixa 1..255]
-motor_reducao = 26
+# Reducao entre motor e TCRT (1 = no eixo) [-, faixa 1..255]
+motor_reducao = 1
 # RPM nominal (centro da faixa ideal) [RPM, faixa 1..20000]
 motor_rpm_nominal = 1740
 # Faixa ideal = nominal +- isto [RPM, faixa 1..20000]
@@ -53,11 +53,11 @@ carencia_partida_ms = 5000
 # Corrente com RPM 0 por mais: ruim [ms, faixa 0..60000]
 rpm_zero_ruim_ms = 3000
 # Sem pulso por mais: RPM = 0 [ms, faixa 100..60000]
-rpm_timeout_sem_pulso_ms = 2000
+rpm_timeout_sem_pulso_ms = 500
 # Ciclos melhores para o Andon melhorar [ciclo, faixa 1..100]
 andon_histerese_ciclos = 3
 # Pulso mais proximo que isso e ruido [us, faixa 1000..10000000]
-tcrt_pulso_min_us = 200000
+tcrt_pulso_min_us = 10000
 # Marcas refletivas por volta [-, faixa 1..16]
 tcrt_marcas_por_volta = 1
 # Sensibilidade do ACS712 [V/A, faixa 0.010..1.000]

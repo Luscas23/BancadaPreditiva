@@ -29,7 +29,7 @@ static const ConfigItem TAB[] PROGMEM = {
   I("motor_corrente_nominal_a", T_F, G_MOTOR, motorCorrenteA, PAD_MOTOR_CORRENTE_A, 0.1, 100, "A", "Corrente nominal do motor", 0),
   I("motor_tensao_v",     T_U16, G_MOTOR, motorTensaoV,    PAD_MOTOR_TENSAO_V,    1, 1000, "V", "Tensao nominal (informativo)", 0),
   I("motor_potencia_w",   T_U16, G_MOTOR, motorPotenciaW,  PAD_MOTOR_POTENCIA_W,  1, 60000, "W", "Potencia nominal (informativo)", 0),
-  I("motor_reducao",      T_U8,  G_MOTOR, reducao,         PAD_MOTOR_REDUCAO,     1, 255, "-", "Reducao motor -> eixo do TCRT", 1),
+  I("motor_reducao",      T_U8,  G_MOTOR, reducao,         PAD_MOTOR_REDUCAO,     1, 255, "-", "Reducao entre motor e TCRT (1 = no eixo)", 1),
   I("motor_rpm_nominal",  T_U16, G_RPM,  rpmNominal,       PAD_MOTOR_RPM,         1, 20000, "RPM", "RPM nominal (centro da faixa ideal)", 1),
   I("rpm_tolerancia",     T_U16, G_RPM,  rpmTolerancia,    PAD_RPM_TOLERANCIA,    1, 20000, "RPM", "Faixa ideal = nominal +- isto", 0),
   I("rpm_grave_min",      T_U16, G_RPM,  rpmGraveMin,      PAD_RPM_GRAVE_MIN,     1, 20000, "RPM", "Abaixo disso: grave", 0),
@@ -204,7 +204,10 @@ int configValidar(Print &log) {
   // Só avisos: o resto continua valendo
   float periodoUs = 60e6f * cfg.reducao / cfg.rpmNominal / cfg.tcrtMarcas;
   if (!(periodoUs > 2.0f * cfg.pulsoMinUs)) {
-    log.println(F("CFG: AVISO periodo do TCRT proximo de tcrt_pulso_min_us (RPM seria filtrado)")); n++;
+    log.println(F("CFG: *** ATENCAO: periodo do TCRT proximo de tcrt_pulso_min_us, RPM seria filtrado ***")); n++;
+  }
+  if (!(cfg.rpmTimeoutMs * 1000.0f > 5.0f * periodoUs)) {
+    log.println(F("CFG: *** ATENCAO: rpm_timeout_sem_pulso_ms menor que ~5 periodos, RPM piscaria em 0 ***")); n++;
   }
   float f1 = cfg.rpmNominal / 60.0f;
   if (!(f1 > cfg.adxlFminHz && f1 < ADXL_FS / 2.0f)) {

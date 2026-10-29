@@ -14,7 +14,7 @@
 | `motor_corrente_nominal_a` | A | 2.900 | 0.100 .. 100.000 | Corrente nominal do motor | nao |
 | `motor_tensao_v` | V | 127 | 1 .. 1000 | Tensao nominal (informativo) | nao |
 | `motor_potencia_w` | W | 325 | 1 .. 60000 | Potencia nominal (informativo) | nao |
-| `motor_reducao` | - | 26 | 1 .. 255 | Reducao motor -> eixo do TCRT | sim |
+| `motor_reducao` | - | 1 | 1 .. 255 | Reducao entre motor e TCRT (1 = no eixo) | sim |
 | `motor_rpm_nominal` | RPM | 1740 | 1 .. 20000 | RPM nominal (centro da faixa ideal) | sim |
 | `rpm_tolerancia` | RPM | 140 | 1 .. 20000 | Faixa ideal = nominal +- isto | nao |
 | `rpm_grave_min` | RPM | 1400 | 1 .. 20000 | Abaixo disso: grave | nao |
@@ -29,9 +29,9 @@
 | `erros_para_grave` | - | 3 | 1 .. 10 | Erros somados que viram GRAVE | nao |
 | `carencia_partida_ms` | ms | 5000 | 0 .. 60000 | Apos a partida corrente/RPM nao contam | nao |
 | `rpm_zero_ruim_ms` | ms | 3000 | 0 .. 60000 | Corrente com RPM 0 por mais: ruim | nao |
-| `rpm_timeout_sem_pulso_ms` | ms | 2000 | 100 .. 60000 | Sem pulso por mais: RPM = 0 | nao |
+| `rpm_timeout_sem_pulso_ms` | ms | 500 | 100 .. 60000 | Sem pulso por mais: RPM = 0 | nao |
 | `andon_histerese_ciclos` | ciclo | 3 | 1 .. 100 | Ciclos melhores para o Andon melhorar | nao |
-| `tcrt_pulso_min_us` | us | 200000 | 1000 .. 10000000 | Pulso mais proximo que isso e ruido | nao |
+| `tcrt_pulso_min_us` | us | 10000 | 1000 .. 10000000 | Pulso mais proximo que isso e ruido | nao |
 | `tcrt_marcas_por_volta` | - | 1 | 1 .. 16 | Marcas refletivas por volta | nao |
 | `acs_sensibilidade_v_a` | V/A | 0.185 | 0.010 .. 1.000 | Sensibilidade do ACS712 | nao |
 | `acs_vcc_v` | V | 5.000 | 1.000 .. 6.000 | Alimentacao / referencia do ADC | nao |

@@ -15,6 +15,8 @@ typedef const char __FlashStringHelper;
 #define HEX 16
 #define A0 54
 #define NOT_AN_INTERRUPT 255
+#define noInterrupts()
+#define interrupts()
 #define digitalPinToInterrupt(p) ((p) == 2 || (p) == 3 || ((p) >= 18 && (p) <= 21) ? (p) : NOT_AN_INTERRUPT)
 
 class Print {
