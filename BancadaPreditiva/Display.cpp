@@ -1,11 +1,10 @@
 #include "Display.h"
-#include "SensorPT100.h"     // erroSensor
-#include "SensorRPM.h"       // rpmAtual
-#include "LoggerSD.h"        // sdDisponivel
+#include "SensorPT100.h"
+#include "SensorRPM.h"
+#include "LoggerSD.h"
 #include "Configuracao.h"
 #include "config.h"
 
-// Endereço vem de cfg: objeto construído em buffer estático, sem heap
 alignas(LiquidCrystal_I2C) static uint8_t lcdBuf[sizeof(LiquidCrystal_I2C)];
 static LiquidCrystal_I2C *lcdp;
 #define lcd (*lcdp)
@@ -30,7 +29,6 @@ void displayMsg(const __FlashStringHelper* linha0, const __FlashStringHelper* li
   lcd.setCursor(0, 1); lcd.print(linha1);
 }
 
-// Duas linhas de 16 colunas montadas e impressas de uma vez (sem piscar)
 void atualizarDisplay(float temperatura, float corrente, float freqVib, EstadoVibTela estadoVib) {
   char t[8], c[8], v[8], l0[17], l1[17];
 

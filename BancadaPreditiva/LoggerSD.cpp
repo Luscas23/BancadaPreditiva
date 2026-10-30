@@ -4,20 +4,16 @@
 #include "LoggerSD.h"
 #include "Configuracao.h"
 #include "config.h"
-#include "SensorRPM.h"   // rpmAtual, estadoMotor
+#include "SensorRPM.h"
 
 static unsigned long inicioLeituraMs    = 0;
 
 bool sdDisponivel = false;
 
-// Cartão é recurso secundário. Cada gravação abre, escreve e fecha (flush
-// imediato): protege contra perda de dados se faltar energia.
 bool loggerSDMontar() {
   return SD.begin(PIN_SD_CS);
 }
 
-// Linhas '#': notas ignoradas por pandas (comment='#'). A configuração é anotada
-// a cada boot: o log único recebe vários ensaios.
 bool loggerSDInit() {
   bool novo = !SD.exists(NOME_ARQ_LOG);
   File arquivo = SD.open(NOME_ARQ_LOG, FILE_WRITE);
@@ -32,7 +28,6 @@ bool loggerSDInit() {
   return true;
 }
 
-// Lê CONFIG.TXT linha a linha (buffer na pilha). 0 também se o arquivo não existe.
 int configCarregarSD(Print &log) {
   File f = SD.open(NOME_ARQ_CFG);
   if (!f) return 0;
@@ -42,7 +37,7 @@ int configCarregarSD(Print &log) {
     wdt_reset();
     avisos += configAlimentar(l, f.read(), log);
   }
-  avisos += configAlimentar(l, '\n', log);   // última linha sem '\n'
+  avisos += configAlimentar(l, '\n', log);
   f.close();
   return avisos;
 }
@@ -73,7 +68,7 @@ void gravarLeituraSD(float temperatura, float corrente, EstadoAndon estado, int 
 
   File arquivo = SD.open(NOME_ARQ_LOG, FILE_WRITE);
   if (!arquivo) {
-    sdDisponivel = false;  // cartão removido/corrompido: o LCD passa a mostrar '!'
+    sdDisponivel = false;
     return;
   }
 

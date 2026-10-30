@@ -7,12 +7,10 @@
 
 Config cfg;
 
-enum { T_U8, T_HEX, T_NIVEL, T_U16, T_U32, T_F };   // T_U8..T_NIVEL ocupam 1 byte
+enum { T_U8, T_HEX, T_NIVEL, T_U16, T_U32, T_F };
 enum { G_PINOS, G_RELE, G_I2C, G_MOTOR, G_RPM, G_CORR, G_TEMP, G_VIB, G_TEMPOS, G_TCRT,
        G_ACS, G_PT, G_BANDAS, G_VIBCAL };
 
-// Uma tabela alimenta leitura, validação de faixa, padrões, impressão e documentação.
-// I(chave, tipo, grupo, campo, padrão, mín, máx, unidade, descrição, afeta baseline)
 #define I(n, t, g, c, d, mn, mx, u, ds, bl) \
   { n, u, ds, t, g, bl, offsetof(Config, c), d, mn, mx }
 
@@ -102,8 +100,6 @@ static void preencherPadrao(Config &c) {
 
 void configPadrao() { preencherPadrao(cfg); }
 
-// ---------------- Leitura ----------------
-
 static char *trim(char *s) {
   while (isspace((uint8_t)*s)) s++;
   char *e = s + strlen(s);
@@ -137,7 +133,7 @@ int configAplicarLinha(char *l, Print &log) {
     ok = fim != val && !*fim;
   }
   if (!ok) { log.print(F("CFG: valor invalido: ")); log.println(chave); return 1; }
-  if (!(v >= it.min && v <= it.max)) {   // !(...) também rejeita NaN
+  if (!(v >= it.min && v <= it.max)) {
     log.print(F("CFG: fora da faixa: ")); log.println(chave); return 1;
   }
   gravar(cfg, it, v);
@@ -151,13 +147,11 @@ int configAlimentar(LinhaCfg &l, char c, Print &log) {
     return 0;
   }
   int r = 0;
-  if (l.longa) { if (l.b[0] != '#') { log.println(F("CFG: linha longa ignorada")); r = 1; } }   // comentário longo é inofensivo
+  if (l.longa) { if (l.b[0] != '#') { log.println(F("CFG: linha longa ignorada")); r = 1; } }
   else if (l.n) { l.b[l.n] = 0; r = configAplicarLinha(l.b, log); }
   l.n = 0; l.longa = false;
   return r;
 }
-
-// ---------------- Validação cruzada ----------------
 
 static int reverter(uint8_t g, const Config &d, Print &log, const __FlashStringHelper *msg) {
   ConfigItem it;
@@ -178,7 +172,6 @@ int configValidar(Print &log) {
                         cfg.pinTcrt, cfg.pinAcs, cfg.pinMaxCs, PIN_SD_CS };
   bool ruim = digitalPinToInterrupt(cfg.pinTcrt) == NOT_AN_INTERRUPT;
   for (uint8_t i = 0; i < 7; i++) {
-    // Reservados: Serial (0,1), I2C (20,21), SPI (50-53)
     if (i < 6 && (p[i] < 2 || p[i] == 20 || p[i] == 21 || (p[i] >= 50 && p[i] <= 53))) ruim = true;
     for (uint8_t j = i + 1; j < 7; j++) if (p[i] == p[j]) ruim = true;
   }
@@ -201,7 +194,6 @@ int configValidar(Print &log) {
         (int)cfg.adxlFmaxHz * ADXL_N / ADXL_FS <= ADXL_N / 2 - 2))
     n += reverter(G_BANDAS, d, log, F("bandas FFT: fmin < alta < fmax < Nyquist"));
 
-  // Só avisos: o resto continua valendo
   float periodoUs = 60e6f * cfg.reducao / cfg.rpmNominal / cfg.tcrtMarcas;
   if (!(periodoUs > 2.0f * cfg.pulsoMinUs)) {
     log.println(F("CFG: *** ATENCAO: periodo do TCRT proximo de tcrt_pulso_min_us, RPM seria filtrado ***")); n++;
@@ -215,8 +207,6 @@ int configValidar(Print &log) {
   }
   return n;
 }
-
-// ---------------- Derivados ----------------
 
 LimitesAvaliacao limitesDeConfig() {
   LimitesAvaliacao l = {
@@ -243,8 +233,6 @@ uint16_t configAssinaturaVib() {
                          cfg.adxlBandaBins, cfg.rpmNominal, cfg.reducao };
   return crc16(s, sizeof s);
 }
-
-// ---------------- Impressão ----------------
 
 void configImprimirValor(Print &p, const ConfigItem &it, float v) {
   switch (it.tipo) {

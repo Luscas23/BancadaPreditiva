@@ -12,7 +12,7 @@ float lerCorrente() {
   }
   float m   = (float)s / cfg.acsAmostras;
   float var = (float)s2 / cfg.acsAmostras - m * m;
-  if (var < 0) var = 0;   // arredondamento de float com sinal constante daria NaN
+  if (var < 0) var = 0;
   float rms = sqrt(var) * cfg.acsVcc / ADC_MAX / cfg.acsSens;
   return rms < cfg.acsPisoA ? 0 : rms;
 }

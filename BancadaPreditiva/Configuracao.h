@@ -2,16 +2,12 @@
 #define CONFIGURACAO_H
 
 #include <Arduino.h>
-#include "LogicaAvaliacao.h"   // LimitesAvaliacao
+#include "LogicaAvaliacao.h"
 #include "config.h"
 
-// Construção em buffer estático (objetos de biblioteca com pino/endereço de execução).
-// Operador próprio, com tag, para não colidir com o do core.
 struct ColocarEm {};
 inline void *operator new(size_t, void *p, ColocarEm) noexcept { return p; }
 
-// Camada 2: valores em uso. configPadrao() copia os PAD_* de config.h;
-// CONFIG.TXT e a validação ajustam depois.
 struct Config {
   uint8_t  pinReleVerde, pinReleAmarelo, pinReleVermelho, pinTcrt, pinAcs, pinMaxCs;
   uint8_t  releAtivoEm, enderecoLcd, enderecoAdxl;
@@ -39,22 +35,19 @@ struct Config {
 
 extern Config cfg;
 
-void configPadrao();                              // cfg = padrões do config.h
+void configPadrao();
 
-// Uma linha do CONFIG.TXT, montada caractere a caractere (buffer fica com o chamador).
 struct LinhaCfg { char b[CFG_LINHA_MAX]; uint8_t n; bool longa; };
-int configAplicarLinha(char *linha, Print &log);  // 0 = ok, 1 = aviso (valor ignorado)
-int configAlimentar(LinhaCfg &l, char c, Print &log);   // '\n' fecha a linha; devolve avisos
+int configAplicarLinha(char *linha, Print &log);
+int configAlimentar(LinhaCfg &l, char c, Print &log);
 
-int configCarregarSD(Print &log);                 // LoggerSD.cpp; 0 se não há arquivo
-int configValidar(Print &log);                    // devolve nº de avisos; grupo ruim volta ao padrão
+int configCarregarSD(Print &log);
+int configValidar(Print &log);
 LimitesAvaliacao limitesDeConfig();
-uint16_t configAssinaturaVib();                   // muda se algo que afeta a baseline mudar
+uint16_t configAssinaturaVib();
 
-// pre: prefixo de cada linha ("# " no log). doc: acrescenta comentário de documentação por chave.
 void configImprimir(Print &p, const char *pre, bool doc);
 
-// Acesso à tabela (testes e geração de documentação)
 struct ConfigItem {
   char nome[26], un[6], desc[42];
   uint8_t tipo, grupo, baseline;

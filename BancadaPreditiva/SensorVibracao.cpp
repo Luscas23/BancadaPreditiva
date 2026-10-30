@@ -14,7 +14,7 @@ static float   vImag[ADXL_N];
 static float   espectro[ADXL_N / 2];
 static ArduinoFFT<float> fft(vReal, vImag, ADXL_N, ADXL_FS);
 
-static int          binMin, binMax, binAltaMin;   // bins das bandas, calculados em vibracaoInit()
+static int          binMin, binMax, binAltaMin;
 static float        pisoRuido = 0.0;
 static float        baseline[3];
 static uint8_t      falhas = 0;
@@ -25,8 +25,6 @@ static uint8_t ciclosEstaveis   = 0;
 static uint8_t janelasAcumuladas = 0;
 static float   somaAmp[3];
 static float   rpmMedia = 0.0;
-
-// ---------------- I2C ----------------
 
 static bool escreverReg(uint8_t reg, uint8_t valor) {
   Wire.beginTransmission(cfg.enderecoAdxl);
@@ -44,7 +42,6 @@ static bool lerRegs(uint8_t reg, uint8_t *buf, uint8_t n) {
   return true;
 }
 
-// -1 = erro de I2C
 static int8_t entradasFifo() {
   uint8_t e;
   if (!lerRegs(ADXL_REG_FIFO_STATUS, &e, 1)) return -1;
@@ -59,8 +56,6 @@ static bool lerAmostra(int16_t s[3]) {
   return true;
 }
 
-// Lê as entradas informadas por ENTRIES sem repetir a consulta a cada
-// amostra, para alcançar o relógio do sensor.
 static bool drenarFifo() {
   int16_t descarte[3];
   for (uint8_t t = 0; t < ADXL_DRENAR_TENTATIVAS; t++) {
@@ -78,11 +73,9 @@ static bool lerAmostraFifo(int16_t s[3]) {
   while ((e = entradasFifo()) == 0) {
     if (micros() - t0 > ADXL_TIMEOUT_AMOSTRA_US) return false;
   }
-  if (e < 0 || e >= ADXL_FIFO_TAM) return false;   // erro ou overrun
+  if (e < 0 || e >= ADXL_FIFO_TAM) return false;
   return lerAmostra(s);
 }
-
-// ---------------- Janela e espectro ----------------
 
 static bool coletarJanela() {
   if (!drenarFifo()) return false;
@@ -96,7 +89,6 @@ static bool coletarJanela() {
   return true;
 }
 
-// RSS dos 3 eixos, cada um sem a média (remove a gravidade).
 static void calcularEspectro() {
   for (uint8_t k = 0; k < ADXL_N / 2; k++) espectro[k] = 0.0;
 
@@ -127,7 +119,7 @@ static bool janelaEspectro() {
 }
 
 static float maxBanda(int lo, int hi) {
-  if (lo < 1) lo = 1;                       // bin 0 é DC
+  if (lo < 1) lo = 1;
   if (hi > ADXL_N / 2 - 1) hi = ADXL_N / 2 - 1;
   float m = 0.0;
   for (int k = lo; k <= hi; k++) if (espectro[k] > m) m = espectro[k];
@@ -150,8 +142,6 @@ static float freqDominante() {
   return (pico + delta) * ADXL_FS / ADXL_N;
 }
 
-// ---------------- Razão contra a baseline ----------------
-
 static float baselineEfetiva(uint8_t b) {
   return fmaxf(baseline[b], pisoRuido);
 }
@@ -172,11 +162,9 @@ static void atualizarRazao(float rpm, const VibResultado &r) {
   vibRazao = mediana3(histRazao[0], histRazao[1], histRazao[2]);
 }
 
-// ---------------- Baseline na EEPROM ----------------
-
 struct BaselineEEPROM {
   float   b[3];
-  uint16_t assinatura;   // configAssinaturaVib() de quando foi gravada
+  uint16_t assinatura;
   uint8_t valido;
 };
 
@@ -192,7 +180,7 @@ static bool carregarBaseline() {
   BaselineEEPROM e;
   EEPROM.get(VIB_EEPROM_ENDERECO, e);
   if (e.valido != VIB_EEPROM_VALIDO) return false;
-  if (e.assinatura != configAssinaturaVib()) {   // gerada com outros parâmetros: não vale
+  if (e.assinatura != configAssinaturaVib()) {
     Serial.println(F("Baseline da EEPROM e de outra configuracao: recalibrando"));
     return false;
   }
@@ -212,14 +200,12 @@ static void imprimirBaseline() {
   Serial.println(baseline[2], 4);
 }
 
-// ---------------- API ----------------
-
 bool vibracaoInit() {
   binMin     = (cfg.adxlFminHz * ADXL_N + ADXL_FS - 1) / ADXL_FS;
   binMax     = cfg.adxlFmaxHz * ADXL_N / ADXL_FS;
   binAltaMin = (cfg.adxlAltaMinHz * ADXL_N + ADXL_FS - 1) / ADXL_FS;
 
-  Wire.begin();   // 100 kHz: não usar setClock(400000), o PCF8574 do LCD não suporta
+  Wire.begin();
 #ifdef WIRE_HAS_TIMEOUT
   Wire.setWireTimeout(I2C_TIMEOUT_US, true);
 #endif

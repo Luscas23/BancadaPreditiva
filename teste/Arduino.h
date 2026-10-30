@@ -1,4 +1,3 @@
-// Stub mínimo do Arduino para rodar a lógica e o parser de configuração no PC.
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
