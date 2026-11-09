@@ -1,4 +1,5 @@
 #include <avr/wdt.h>
+#include <Wire.h>
 
 #include "Andon.h"
 #include "SensorCorrente.h"
@@ -63,6 +64,10 @@ void loop() {
   static unsigned long tPartida = 0, tRpmZero = 0;
 
   wdt_reset();
+
+#ifdef WIRE_HAS_TIMEOUT
+  if (Wire.getWireTimeoutFlag()) { Wire.clearWireTimeoutFlag(); displayReiniciar(); }
+#endif
 
   while (Serial.available()) {
     if (Serial.read() == CMD_RECALIBRAR) vibracaoRecalibrar();

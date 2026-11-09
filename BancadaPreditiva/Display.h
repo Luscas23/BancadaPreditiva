@@ -19,4 +19,6 @@ void displayAviso(int n);
 
 void displayMsg(const __FlashStringHelper* linha0, const __FlashStringHelper* linha1);
 
+void displayReiniciar();
+
 #endif

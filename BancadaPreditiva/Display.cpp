@@ -5,6 +5,7 @@
 #include "LoggerSD.h"
 #include "Configuracao.h"
 #include "config.h"
+#include <avr/wdt.h>
 
 alignas(LiquidCrystal_I2C) static uint8_t lcdBuf[sizeof(LiquidCrystal_I2C)];
 static LiquidCrystal_I2C *lcdp;
@@ -12,6 +13,15 @@ static LiquidCrystal_I2C *lcdp;
 
 void displayInit() {
   lcdp = new (lcdBuf, ColocarEm{}) LiquidCrystal_I2C(cfg.enderecoLcd, LCD_COLS, LCD_LINHAS);
+  lcd.init();
+  lcd.backlight();
+}
+
+void displayReiniciar() {
+  static unsigned long ultimo = 0;
+  if (ultimo && millis() - ultimo < 10000UL) return;   // no máximo a cada 10 s
+  ultimo = millis();
+  wdt_reset();
   lcd.init();
   lcd.backlight();
 }
