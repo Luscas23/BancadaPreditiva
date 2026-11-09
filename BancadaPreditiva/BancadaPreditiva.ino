@@ -108,7 +108,7 @@ void loop() {
   if      (erroSensorVib)              telaVib = VIB_TELA_ERRO;
   else if (rpmAtual == 0)              telaVib = VIB_TELA_PARADO;
   else if (vibCalib == VIB_CALIBRANDO) telaVib = VIB_TELA_CALIBRANDO;
-  atualizarDisplay(temperatura, corrente, vib.freqDominante, telaVib);
+  atualizarDisplay(temperatura, corrente, vib.freqDominante, telaVib, estado, erros);
 
   imprimirLinha(Serial, '\t', temperatura, corrente, estado, erros, vib);
 
