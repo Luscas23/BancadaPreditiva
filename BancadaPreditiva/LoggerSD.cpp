@@ -5,6 +5,9 @@
 #include "Configuracao.h"
 #include "config.h"
 #include "SensorRPM.h"
+#include "SensorPT100.h"
+#include "SensorCorrente.h"
+#include "SensorVibracao.h"
 
 static unsigned long inicioLeituraMs    = 0;
 
@@ -20,7 +23,7 @@ bool loggerSDInit() {
   if (!arquivo) return false;
   if (novo) {
     arquivo.println(F("# temp_C = nan indica falha do sensor PT100 (fault do MAX31865) - nao e uma leitura real"));
-    arquivo.println(F("tempo_s,temp_C,corrente_A,rpm,erros,estado_motor,estado_andon,freq_vib_hz,vib_1x_g,vib_2x_g,vib_alta_g,vib_razao,vib_calib"));
+    arquivo.println(F("tempo_s,temp_C,corrente_A,rpm,erros,estado_motor,estado_andon,freq_vib_hz,vib_1x_g,vib_2x_g,vib_alta_g,vib_razao,vib_calib,erro_temp,erro_corr,erro_vib"));
   }
   arquivo.println(F("# --- boot: configuracao usada ---"));
   configImprimir(arquivo, "# ", false);
@@ -59,7 +62,10 @@ void imprimirLinha(Print &p, char sep, float temperatura, float corrente, Estado
   p.print(vib.amp2X, 4);                  p.print(sep);
   p.print(vib.ampAlta, 4);                p.print(sep);
   p.print(vibRazao, 2);                   p.print(sep);
-  p.println((int)vibCalib);
+  p.print((int)vibCalib);                 p.print(sep);
+  p.print(erroSensor);                    p.print(sep);
+  p.print(erroSensorCorr);                p.print(sep);
+  p.println(erroSensorVib);
 }
 
 void gravarLeituraSD(float temperatura, float corrente, EstadoAndon estado, int erros,
