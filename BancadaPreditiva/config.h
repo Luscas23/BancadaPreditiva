@@ -47,6 +47,7 @@
 #define PAD_RPM_ZERO_RUIM_MS    3000   // corrente com RPM 0 por mais que isso = ruim
 #define PAD_RPM_TIMEOUT_MS      500    // sem pulso por mais que isso: RPM = 0 (~15 voltas a 1740 RPM)
 #define PAD_ANDON_HISTERESE     3      // ciclos melhores seguidos para melhorar o Andon
+#define PAD_ANDON_CONFIRMA_MS   2000   // piora só vale depois de ficar assim por este tempo (recompilar)
 #define LOOP_SEM_JANELA_MS      500    // pausa do loop sem janela de vibração válida
 #define FALHA_MSG_MS            1500   // tempo da mensagem de falha de sensor no LCD
 #define CFG_MSG_MS              2000   // tempo da mensagem de aviso de config no LCD

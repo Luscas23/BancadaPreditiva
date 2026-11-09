@@ -25,9 +25,11 @@ EstadoAndon avaliarEstado(const LeituraAtual& l, const LimitesAvaliacao& lim, in
     }
   }
 
-  if (l.erroSensorVib)                    ruim++;
-  else if (l.vibRazao > lim.vibMultGrave) perigoso++;
-  else if (l.vibRazao > lim.vibMultRuim)  ruim++;
+  if (l.erroSensorVib) ruim++;
+  else if (l.msDesdePartida >= lim.carenciaMs) {
+    if      (l.vibRazao > lim.vibMultGrave) perigoso++;
+    else if (l.vibRazao > lim.vibMultRuim)  ruim++;
+  }
 
   erros = ruim + perigoso;
 
