@@ -13,10 +13,12 @@ typedef enum {
   VIB_TELA_ERRO
 } EstadoVibTela;
 
-void atualizarDisplay(float temperatura, float corrente, float freqVib, EstadoVibTela estadoVib);
+void atualizarDisplay(float temperatura, float corrente, float freqVib, EstadoVibTela estadoVib, EstadoAndon estado, int erros);
 
 void displayAviso(int n);
 
 void displayMsg(const __FlashStringHelper* linha0, const __FlashStringHelper* linha1);
+
+void displayReiniciar();
 
 #endif

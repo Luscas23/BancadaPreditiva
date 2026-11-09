@@ -25,12 +25,21 @@ void setAndon(EstadoAndon estado) {
 }
 
 EstadoAndon estabilizarAndon(EstadoAndon novo) {
-  static EstadoAndon conf = ANDON_BOM;
-  static int         n    = 0;
+  static EstadoAndon conf = ANDON_BOM, cand = ANDON_BOM;
+  static unsigned long desde = 0;
+  static int n = 0;
+  unsigned long agora = millis();
 
-  if (novo == ANDON_APAGADO) { conf = ANDON_BOM; n = 0; return novo; }
-  if (novo >= conf) { conf = novo; n = 0; }
-  else if (++n >= cfg.andonHisterese) { conf = novo; n = 0; }
+  if (novo == ANDON_APAGADO) { conf = cand = ANDON_BOM; n = 0; return novo; }
+  if (novo > conf) {                                  // piorou: confirma por tempo
+    if (novo != cand) { cand = novo; desde = agora; }
+    n = 0;
+    if (agora - desde >= ANDON_CONFIRMA_MS) { conf = novo; cand = novo; }
+  } else if (novo == conf) {
+    cand = conf; n = 0;
+  } else if (++n >= cfg.andonHisterese) {             // melhorou: histerese de ciclos
+    conf = novo; cand = novo; n = 0;
+  }
   return conf;
 }
 

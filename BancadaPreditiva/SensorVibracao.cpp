@@ -118,6 +118,13 @@ static bool janelaEspectro() {
   return true;
 }
 
+static bool adxlConfigurar() {
+  return escreverReg(ADXL_REG_BW_RATE,     ADXL_BW_RATE)
+      && escreverReg(ADXL_REG_DATA_FORMAT, ADXL_DATA_FORMAT)
+      && escreverReg(ADXL_REG_FIFO_CTL,    ADXL_FIFO_CTL)
+      && escreverReg(ADXL_REG_POWER_CTL,   ADXL_POWER_MEASURE);
+}
+
 static float maxBanda(int lo, int hi) {
   if (lo < 1) lo = 1;
   if (hi > ADXL_N / 2 - 1) hi = ADXL_N / 2 - 1;
@@ -216,10 +223,7 @@ bool vibracaoInit() {
     imprimirBaseline();
   }
 
-  return escreverReg(ADXL_REG_BW_RATE,     ADXL_BW_RATE)
-      && escreverReg(ADXL_REG_DATA_FORMAT, ADXL_DATA_FORMAT)
-      && escreverReg(ADXL_REG_FIFO_CTL,    ADXL_FIFO_CTL)
-      && escreverReg(ADXL_REG_POWER_CTL,   ADXL_POWER_MEASURE);
+  return adxlConfigurar();
 }
 
 bool verificarADXL345(float &piso) {
@@ -256,6 +260,8 @@ bool vibracaoLerJanela(float rpm, VibResultado &r) {
   if (!janelaEspectro()) {
     if (falhas < cfg.vibFalhasErro) falhas++;
     erroSensorVib = (falhas >= cfg.vibFalhasErro);
+    static unsigned long tRetry = 0;
+    if (erroSensorVib && millis() - tRetry >= 2000) { tRetry = millis(); adxlConfigurar(); }
     return false;
   }
   falhas        = 0;

@@ -7,4 +7,6 @@ float lerCorrente();
 
 bool verificarACS712();
 
+extern bool erroSensorCorr;
+
 #endif

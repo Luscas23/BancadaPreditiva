@@ -1,4 +1,5 @@
 #include <avr/wdt.h>
+#include <Wire.h>
 
 #include "Andon.h"
 #include "SensorCorrente.h"
@@ -53,7 +54,7 @@ void setup() {
 
   wdt_enable(WDT_TIMEOUT);
 
-  Serial.println(F("Temp(C)\tCorr(A)\tRPM\tErros\tMotor\tEstado\tFreq(Hz)\t1X(g)\t2X(g)\tAlta(g)\tRazao\tCalib"));
+  Serial.println(F("Temp(C)\tCorr(A)\tRPM\tErros\tMotor\tEstado\tFreq(Hz)\t1X(g)\t2X(g)\tAlta(g)\tRazao\tCalib\terro_temp\terro_corr\terro_vib"));
   if (sdDisponivel) Serial.println(F("Gravando em LOG.CSV no cartao SD"));
   else              Serial.println(F("Cartao SD indisponivel - gravacao desabilitada"));
 }
@@ -61,8 +62,20 @@ void setup() {
 void loop() {
   static bool          ligado   = false;
   static unsigned long tPartida = 0, tRpmZero = 0;
+  static unsigned long tSd      = 0;
 
   wdt_reset();
+
+#ifdef WIRE_HAS_TIMEOUT
+  if (Wire.getWireTimeoutFlag()) { Wire.clearWireTimeoutFlag(); displayReiniciar(); }
+#endif
+
+  if (!sdDisponivel && millis() - tSd >= 10000UL) {
+    tSd = millis();
+    pinMode(cfg.pinMaxCs, OUTPUT);
+    digitalWrite(cfg.pinMaxCs, HIGH);   // SPI compartilhado
+    sdDisponivel = loggerSDMontar() && loggerSDInit();
+  }
 
   while (Serial.available()) {
     if (Serial.read() == CMD_RECALIBRAR) vibracaoRecalibrar();
@@ -88,6 +101,7 @@ void loop() {
   leitura.vibRazao       = vibRazao;
   leitura.erroSensorVib  = erroSensorVib;
   leitura.erroSensorTemp = erroSensor;
+  leitura.erroSensorCorr = erroSensorCorr;
   leitura.msDesdePartida = lig ? agora - tPartida : 0;
   leitura.msRpmZero      = agora - tRpmZero;
 
@@ -102,7 +116,7 @@ void loop() {
   if      (erroSensorVib)              telaVib = VIB_TELA_ERRO;
   else if (rpmAtual == 0)              telaVib = VIB_TELA_PARADO;
   else if (vibCalib == VIB_CALIBRANDO) telaVib = VIB_TELA_CALIBRANDO;
-  atualizarDisplay(temperatura, corrente, vib.freqDominante, telaVib);
+  atualizarDisplay(temperatura, corrente, vib.freqDominante, telaVib, estado, erros);
 
   imprimirLinha(Serial, '\t', temperatura, corrente, estado, erros, vib);
 

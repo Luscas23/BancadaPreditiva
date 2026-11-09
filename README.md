@@ -64,8 +64,22 @@ linhas `#` (use `comment='#'` no pandas).
   não derivados do nominal. Mudou RPM nominal, redução ou bandas da FFT: a
   baseline da EEPROM deixa de valer (assinatura) e é recalibrada sozinha.
 - `exemplo/CONFIG.TXT` e `docs/CONFIG.md` saem da tabela:
-  `g++ -I teste -I Software teste/teste_config.cpp Software/Configuracao.cpp Software/LogicaAvaliacao.cpp -o /tmp/tc && /tmp/tc --gerar`
-- Teste do cálculo de RPM: `g++ -I teste -I Software teste/teste_rpm.cpp -o /tmp/teste_rpm && /tmp/teste_rpm`
+  `g++ -I teste -I BancadaPreditiva teste/teste_config.cpp BancadaPreditiva/Configuracao.cpp BancadaPreditiva/LogicaAvaliacao.cpp -o /tmp/tc && /tmp/tc --gerar`
+- Teste do cálculo de RPM: `g++ -I teste -I BancadaPreditiva teste/teste_rpm.cpp -o /tmp/teste_rpm && /tmp/teste_rpm`
+
+## Ligação elétrica
+
+Cuidados vindos do cabeçalho do código antigo:
+
+- **Conversor de nível 3,3 V↔5 V no I2C do ADXL345**: o ADXL345 opera em 3,3 V; o Arduino Mega usa 5 V no barramento I2C. Um conversor bidirecional é obrigatório para evitar danos ao sensor.
+- **Jumper JD-VCC dos relés**: o módulo de relés geralmente tem um jumper JD-VCC que isola a alimentação dos relés da alimentação do optoacoplador. Para isolamento correto, remova o jumper e alimente o pino JD-VCC com uma fonte externa de 5 V (comum com o GND do Arduino).
+- **Ligar o Arduino com o motor desligado**: antes de energizar o Arduino, certifique-se de que o motor está desligado. Isso evita transientes na partida e leituras incorretas nos sensores durante o boot.
+
+## Calibração da vibração
+
+1. Calibre só com o motor **saudável**, na montagem final e com o sensor fixo.
+2. Aguarde o `C:` sair do display (ou a mensagem na Serial).
+3. Refaça a calibração com o comando `c` sempre que mexer em fixação, posição do sensor, base ou acoplamento.
 
 ## Como validar cada passo
 

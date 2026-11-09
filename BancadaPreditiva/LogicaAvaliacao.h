@@ -10,6 +10,7 @@ struct LeituraAtual {
   float vibRazao;
   bool  erroSensorVib;
   bool  erroSensorTemp;
+  bool  erroSensorCorr;
   unsigned long msDesdePartida;
   unsigned long msRpmZero;
 };
