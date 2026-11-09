@@ -21,7 +21,7 @@ void displayInit() {
 
 void displayReiniciar() {
   static unsigned long ultimo = 0;
-  if (ultimo && millis() - ultimo < 10000UL) return;   // no máximo a cada 10 s
+  if (ultimo && millis() - ultimo < 10000UL) return;
   ultimo = millis();
   wdt_reset();
   lcd.init();
@@ -60,10 +60,10 @@ void atualizarDisplay(float temperatura, float corrente, float freqVib, EstadoVi
   uint8_t pag = (millis() / 3000) & 1;
   if (pag != paginaAnt) { lcd.clear(); paginaAnt = pag; }
 
-  if (pag == 0) {                                   // página 1: o que já existe
+  if (pag == 0) {
     lcd.setCursor(0, 0); lcd.print(l0);
     lcd.setCursor(0, 1); lcd.print(l1);
-  } else {                                          // página 2: diagnóstico
+  } else {
     lcd.setCursor(0, 0); lcd.print(andonParaTexto(estado));
     lcd.print(F(" Err:")); lcd.print(erros); lcd.print(F("  "));
     lcd.setCursor(0, 1); lcd.print(F("Vib x"));

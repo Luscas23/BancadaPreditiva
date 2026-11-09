@@ -4,7 +4,7 @@ EstadoAndon avaliarEstado(const LeituraAtual& l, const LimitesAvaliacao& lim, in
   int ruim = 0, perigoso = 0;
   erros = 0;
 
-  if (l.erroSensorCorr)                  ruim++;   // falha de sensor nunca apaga a torre
+  if (l.erroSensorCorr)                  ruim++;
   else if (l.corrente < lim.corrParadoA) return ANDON_APAGADO;
 
   if (l.erroSensorTemp)                  ruim++;

@@ -71,7 +71,7 @@ if (Wire.getWireTimeoutFlag()) { Wire.clearWireTimeoutFlag(); displayReiniciar()
   if (!sdDisponivel && millis() - tSd >= 10000UL) {
     tSd = millis();
     pinMode(cfg.pinMaxCs, OUTPUT);
-    digitalWrite(cfg.pinMaxCs, HIGH);   // SPI compartilhado
+    digitalWrite(cfg.pinMaxCs, HIGH);
     sdDisponivel = loggerSDMontar() && loggerSDInit();
   }
 
