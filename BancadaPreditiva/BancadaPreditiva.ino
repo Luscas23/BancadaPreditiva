@@ -88,6 +88,7 @@ void loop() {
   leitura.vibRazao       = vibRazao;
   leitura.erroSensorVib  = erroSensorVib;
   leitura.erroSensorTemp = erroSensor;
+  leitura.erroSensorCorr = erroSensorCorr;
   leitura.msDesdePartida = lig ? agora - tPartida : 0;
   leitura.msRpmZero      = agora - tRpmZero;
 

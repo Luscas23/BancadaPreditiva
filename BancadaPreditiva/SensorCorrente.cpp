@@ -2,6 +2,8 @@
 #include "Configuracao.h"
 #include "config.h"
 
+bool erroSensorCorr = false;
+
 float lerCorrente() {
   long s = 0, s2 = 0;
   for (int i = 0; i < cfg.acsAmostras; i++) {
@@ -11,6 +13,7 @@ float lerCorrente() {
     delayMicroseconds(cfg.acsIntervaloUs);
   }
   float m   = (float)s / cfg.acsAmostras;
+  erroSensorCorr = (m < cfg.acsAdcMin || m > cfg.acsAdcMax);
   float var = (float)s2 / cfg.acsAmostras - m * m;
   if (var < 0) var = 0;
   float rms = sqrt(var) * cfg.acsVcc / ADC_MAX / cfg.acsSens;

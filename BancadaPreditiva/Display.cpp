@@ -1,6 +1,7 @@
 #include "Display.h"
 #include "SensorPT100.h"
 #include "SensorRPM.h"
+#include "SensorCorrente.h"
 #include "LoggerSD.h"
 #include "Configuracao.h"
 #include "config.h"
@@ -35,6 +36,7 @@ void atualizarDisplay(float temperatura, float corrente, float freqVib, EstadoVi
   if (erroSensor) strcpy(t, "ERRO ");
   else            dtostrf(temperatura, 5, 1, t);
   dtostrf(corrente, 4, 2, c);
+  if (erroSensorCorr) strcpy(c, "ERR ");
   snprintf(l0, sizeof l0, "T:%sC I:%sA", t, c);
 
   if      (estadoVib == VIB_TELA_ERRO)   strcpy(v, "V:ERR");
