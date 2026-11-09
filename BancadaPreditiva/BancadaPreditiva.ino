@@ -66,9 +66,7 @@ void loop() {
 
   wdt_reset();
 
-#ifdef WIRE_HAS_TIMEOUT
-  if (Wire.getWireTimeoutFlag()) { Wire.clearWireTimeoutFlag(); displayReiniciar(); }
-#endif
+if (Wire.getWireTimeoutFlag()) { Wire.clearWireTimeoutFlag(); displayReiniciar(); }
 
   if (!sdDisponivel && millis() - tSd >= 10000UL) {
     tSd = millis();
