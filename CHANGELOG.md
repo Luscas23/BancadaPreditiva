@@ -22,3 +22,10 @@
 - **4** README: corrigido caminho `Software/` → `BancadaPreditiva/`; adicionadas seções "Ligação elétrica" e "Calibração da vibração"; CHANGELOG atualizado.
 
 > **Nota:** apague ou renomeie o `LOG.CSV` antigo do cartão SD — o cabeçalho novo só é escrito em arquivo novo, caso contrário o arquivo antigo ficará com número de colunas misturado.
+
+## Configuração do motor BV Home (basculante monofásico)
+
+- **127 V** (padrão em `config.h` e `exemplo/CONFIG.TXT`): 325 W, 127 V, 2,9 A, 1740 RPM, redução 1. Origem: tabela do fabricante, coluna 127 V.
+- **220 V** (novo `exemplo/CONFIG_220V.TXT`): 315 W, 220 V, 1,4 A, 1740 RPM, redução 1. Limites de corrente proporcionais ao 127 V (`corr_ruim_a ≈ 1,60 A`, `corr_grave_a ≈ 1,93 A`). Não altera padrões de compilação.
+- Parâmetros que dependem de medição mantidos como estão, marcados com "ajustar após medição em regime": `corr_ruim_a`, `corr_grave_a`, `temp_ruim_c`, `temp_grave_c`, `vib_mult_ruim`, `vib_mult_grave`.
+- Seção "Comissionamento do motor" adicionada ao README com procedimento de medição e alerta sobre saturação do ACS712-5A.

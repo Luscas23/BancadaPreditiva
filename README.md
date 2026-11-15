@@ -81,6 +81,13 @@ Cuidados vindos do cabeçalho do código antigo:
 2. Aguarde o `C:` sair do display (ou a mensagem na Serial).
 3. Refaça a calibração com o comando `c` sempre que mexer em fixação, posição do sensor, base ou acoplamento.
 
+## Comissionamento do motor
+
+1. **Corrente:** Meça a corrente RMS em regime com o motor saudável e fixe `corr_ruim_a` em cerca de 1,15x e `corr_grave_a` em cerca de 1,4x esse valor.
+2. **Temperatura:** Meça a temperatura da carcaça em regime e fixe `temp_ruim_c` com folga acima dela.
+3. **Vibração:** Calibre a baseline de vibração (comando `c` na Serial) com o motor saudável, depois induza um defeito controlado (por exemplo, massa no eixo) para validar os multiplicadores 2x e 4x.
+4. **Atenção ao ACS712-5A:** Pico = RMS x 1,414. Com `corr_grave_a = 4,0 A` o pico é de cerca de 5,7 A, acima dos ±5 A do sensor. Se a corrente real em regime passar de cerca de 3,5 A, ou se o limite grave for mantido, avaliar o ACS712-20A (`acs_sensibilidade_v_a = 0.100`).
+
 ## Como validar cada passo
 
 1. Abra `BancadaPreditiva.ino` no Arduino IDE — as abas dos módulos
